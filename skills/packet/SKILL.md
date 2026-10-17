@@ -22,7 +22,8 @@ CLI: `aod` below means `node "${CLAUDE_PLUGIN_ROOT}/scripts/aod.mjs"`.
    - Body: Context (why, links), Design notes (decisions already made), Pitfalls, Out of scope. Reference files
      by path; do not paste their content.
 3. Write the acceptance tests under `tests/acceptance/` (or the project's equivalent). They must test behaviour,
-   not structure.
+   not structure. Contracts and acceptance tests are guarded by a hook: first run
+   `aod unlock --reason "acceptance tests for T-xxxx"` (time-boxed, logged), and `aod lock` after step 5.
 4. Validate: `aod packet validate T-xxxx`
 5. Commit packet and tests to `task/T-xxxx`:
    `aod task commit T-xxxx <acceptance test paths...>`

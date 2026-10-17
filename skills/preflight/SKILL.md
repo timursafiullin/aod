@@ -21,4 +21,5 @@ Run every check; mark the task ready only if all pass. CLI: `aod` means
    error in the test, a missing module the task does not create, a bad path in the command, a missing tool.
 4. The brief will be under ~6000 characters: the packet body references files instead of pasting them.
 5. If everything passes: `aod task set T-xxxx status=ready`.
-   Otherwise fix it (`aod packet restore T-xxxx`, edit, `aod task commit T-xxxx ...`) and report what was wrong.
+   Otherwise fix it (`aod packet restore T-xxxx`, edit, `aod task commit T-xxxx ...`; acceptance-test edits need
+   `aod unlock --reason ...` first and `aod lock` after) and report what was wrong.

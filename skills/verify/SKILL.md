@@ -14,12 +14,14 @@ Cheapest check first; stop at the first failing level. CLI: `aod` means
 
 Checks commits, clean slot at `codex/T-xxxx`, scope and forbidden paths, added skip/only/xfail markers, report
 schema, and re-runs every acceptance command in the slot. Any failure -> REVISE with one blocker finding per
-failed gate. A weakened, skipped or edited test is always a blocker.
+failed gate. A weakened, skipped or edited test is always a blocker. Integrity checks also fail on deleted tests
+and on production code that detects a test run; they only warn (`warnings` in the result) on modified existing
+tests, changed tolerances and comparisons against acceptance-test literals. Pass every warning to the reviewer.
 
 ## 2. Fresh-context review
 
 Launch the `aod:reviewer` subagent (fresh context; do not review the diff in your own long context). Give it
-only: the task id, the slot path (from `aod status`) and the main repository path. It is read-only and returns a
+only: the task id, the slot path (from `aod status`), the main repository path and any gate `warnings`. It is read-only and returns a
 verdict and findings. Also run the unit tests of the touched packages if the acceptance commands do not cover
 them.
 

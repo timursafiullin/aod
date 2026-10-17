@@ -1,8 +1,8 @@
 // aod init, aod slot *, aod index render, aod status
-import { appendFileSync, cpSync, existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, join, relative } from 'node:path';
 import {
-  TEMPLATES, codexBranch, loadIndex, openProject, readJson, renderIndexMd, requireInitialized, saveIndex, writeJson,
+  PLUGIN_ROOT, TEMPLATES, codexBranch, loadIndex, openProject, readJson, renderIndexMd, requireInitialized, saveIndex, writeJson,
 } from '../lib/project.mjs';
 import { AodError, branchExists, git, isClean } from '../lib/proc.mjs';
 
@@ -69,11 +69,12 @@ export function init({ cwd, slots }) {
   }
 
   const gitignore = join(root, '.gitignore');
-  const ignoreLine = '.agents/tasks/jobs/';
-  const current = existsSync(gitignore) ? readFileSync(gitignore, 'utf8') : '';
-  if (!current.split(/\r?\n/).includes(ignoreLine)) {
-    appendFileSync(gitignore, `${current && !current.endsWith('\n') ? '\n' : ''}${ignoreLine}\n`);
-    report.created.push(`.gitignore (${ignoreLine})`);
+  for (const ignoreLine of ['.agents/tasks/jobs/', '.agents/.unlock']) {
+    const current = existsSync(gitignore) ? readFileSync(gitignore, 'utf8') : '';
+    if (!current.split(/\r?\n/).includes(ignoreLine)) {
+      appendFileSync(gitignore, `${current && !current.endsWith('\n') ? '\n' : ''}${ignoreLine}\n`);
+      report.created.push(`.gitignore (${ignoreLine})`);
+    }
   }
 
   // Slots are not created here: `aod delegate` creates them on demand from the then-current base branch,
@@ -89,14 +90,32 @@ export function init({ cwd, slots }) {
 
 export function createSlot(project, name) {
   const path = project.slotPath(name);
-  if (existsSync(path)) return { created: false, path };
+  if (existsSync(path)) {
+    installSlotHook(project, path);
+    return { created: false, path };
+  }
   const branch = `slot/${name}`;
   const base = project.config.base_branch;
   const args = branchExists(project.root, branch)
     ? ['worktree', 'add', path, branch]
     : ['worktree', 'add', path, '-b', branch, base];
   git(args, project.root);
+  installSlotHook(project, path);
   return { created: true, path };
+}
+
+// Pre-commit scope guard for slots only: a per-worktree core.hooksPath, so the main checkout's own hooks
+// (husky etc.) are untouched. Re-installed on every delegation so it follows plugin updates.
+export function installSlotHook(project, slotPath) {
+  const commonDir = git(['rev-parse', '--path-format=absolute', '--git-common-dir'], project.root);
+  const hooksDir = join(commonDir, 'aod-hooks');
+  mkdirSync(hooksDir, { recursive: true });
+  const node = process.execPath.replace(/\\/g, '/');
+  const cli = join(PLUGIN_ROOT, 'scripts', 'aod.mjs').replace(/\\/g, '/');
+  writeFileSync(join(hooksDir, 'pre-commit'), `#!/bin/sh\n# Installed by AOD: commits on codex/T-xxxx must stay inside the packet scope.\nexec "${node}" "${cli}" scope check\n`, { mode: 0o755 });
+  git(['config', 'extensions.worktreeConfig', 'true'], project.root);
+  git(['config', '--worktree', 'core.hooksPath', hooksDir], slotPath);
+  return hooksDir;
 }
 
 export function runningJobs(project) {

@@ -1,6 +1,6 @@
 {
   "name": "aod",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Architect-Orchestrated Development: Claude Code as architect, Codex as cross-family implementers, contracts-first task packets, worktree slots and a verify ladder.",
   "author": { "name": "Timur Safiullin" },
   "homepage": "https://github.com/timursafiullin/aod",

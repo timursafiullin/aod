@@ -32,6 +32,21 @@ and run `codex login`. Check everything with `/aod:doctor`.
 Revisions resume the same Codex thread (max 3 rounds, then escalate to you). Try it on
 [examples/toy-calculator](examples/toy-calculator).
 
+## Guardrails
+
+Hooks enforce the red lines deterministically, but only inside repositories where AOD is initialised:
+
+| Hook | Enforces |
+| --- | --- |
+| SessionStart | Briefing from the journal's *Next step*, open tasks and slots; invariants re-injected after compaction |
+| Git guard | No force-push, `reset --hard`, rebase, `clean -f`, branch deletion or discarding checkouts; read-only git inside slots |
+| Contract guard | Contracts, acceptance tests, accepted ADRs and slots are not edited unless `aod unlock --reason ...` is active |
+| Stop (opt-in) | "Done means green": a turn cannot end with changes while the configured checks fail |
+| Slot pre-commit | Commits on `codex/T-xxxx` must stay inside the packet scope |
+
+Gates add integrity checks: deleted tests, skip markers and test-run detection fail; modified tests, changed
+tolerances and special-cased acceptance literals are flagged for the reviewer.
+
 All mechanics live in a zero-dependency CLI that the skills call; you can also use it directly:
 
 ```bash

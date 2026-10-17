@@ -4,6 +4,7 @@ import { copyFileSync, createWriteStream, existsSync, mkdirSync, readFileSync, w
 import { basename, join } from 'node:path';
 import { execArgs, foldEvent, locateCodex, needsShell, resumeArgs } from '../lib/codex.mjs';
 import { matchesAny, normalizePath } from '../lib/glob.mjs';
+import { integrityChecks } from '../lib/integrity.mjs';
 import {
   TEMPLATES, assertTaskId, codexBranch, getTask, loadIndex, openProject, readJson, readPacket, requireInitialized,
   schema, taskBranch, updateTask, writeJson,
@@ -154,8 +155,9 @@ function finishJob(project, id, state, commitMessage) {
     status = 'failed';
     exit = EXIT.FAIL;
   }
-  updateTask(project, id, (t) => ({
+  const task = updateTask(project, id, (t) => ({
     status, thread_id: state.thread_id || t.thread_id, usage: addUsage(t.usage, state.usage),
+    failures: (t.failures || 0) + (status === 'failed' ? 1 : 0),
   }));
   return {
     exit,
@@ -163,7 +165,9 @@ function finishJob(project, id, state, commitMessage) {
       id, status, slot: state.slot, committed, exit_code: state.exit_code, error: state.error || null, thread_id: state.thread_id,
       usage: state.usage || null, report_status: report?.status || null, report_errors: errors,
       summary: report?.summary || null, open_questions: report?.open_questions || [],
-      next: status === 'review' ? `aod gates ${id}` : status === 'blocked' ? 'answer the question, then aod revise' : 'inspect stderr.log and the slot',
+      failures: task.failures,
+      next: status === 'review' ? `aod gates ${id}` : status === 'blocked' ? 'answer the question, then aod revise'
+        : task.failures >= 2 ? `second failed job: aod reject ${id} and split the task` : 'inspect stderr.log and the slot, fix the environment, then retry',
     },
   };
 }
@@ -235,11 +239,6 @@ export async function revise({ cwd, args, flags }) {
 
 // ---- gates ----
 
-const SKIP_MARKERS = [
-  /\b(?:it|test|describe)\.(?:skip|only|todo)\s*\(/, /\bx(?:it|describe|test)\s*\(/, /@pytest\.mark\.(?:skip|xfail)/,
-  /\bpytest\.(?:skip|xfail)\s*\(/, /#\[ignore\]/, /\bt\.Skip(?:Now|f)?\s*\(/, /@(?:Disabled|Ignore)\b/, /\bunittest\.skip/,
-];
-
 export function changedFiles(slotPath, id) {
   return git(['diff', '--name-only', `${taskBranch(id)}...${codexBranch(id)}`], slotPath).split('\n').filter(Boolean).map(normalizePath);
 }
@@ -253,14 +252,13 @@ export function scopeViolations(files, scope, forbidden) {
   return out;
 }
 
-export function skipMarkers(diffText) {
-  const hits = [];
-  let file = null;
-  for (const line of diffText.split('\n')) {
-    if (line.startsWith('+++ ')) file = line.slice(6);
-    else if (line.startsWith('+') && SKIP_MARKERS.some((re) => re.test(line))) hits.push(`${file}: ${line.slice(1).trim()}`);
-  }
-  return hits;
+export { skipMarkers } from '../lib/integrity.mjs';
+
+// Acceptance test sources added on task/T-xxxx, for the special-casing heuristic.
+function acceptanceSources(project, id) {
+  const files = git(['diff', '--name-only', `${project.config.base_branch}...${taskBranch(id)}`], project.root)
+    .split('\n').filter(Boolean).filter((f) => matchesAny(f, project.config.protected || []));
+  return files.map((f) => git(['show', `${taskBranch(id)}:${f}`], project.root, { allowFail: true }).out || '');
 }
 
 export function gates({ cwd, args }) {
@@ -271,7 +269,7 @@ export function gates({ cwd, args }) {
   const slotPath = project.slotPath(task.slot);
   const { data: packet } = readPacket(project, id);
   const results = [];
-  const check = (name, ok, detail) => results.push({ name, ok, detail });
+  const check = (name, ok, detail) => results.push({ name, ok, level: ok ? 'pass' : 'fail', detail });
 
   const commits = git(['log', '--oneline', `${taskBranch(id)}..${codexBranch(id)}`], slotPath).split('\n').filter(Boolean);
   check('commits', commits.length > 0, commits.length ? `${commits.length} commit(s)` : 'no commits on the implementer branch');
@@ -285,8 +283,13 @@ export function gates({ cwd, args }) {
   const violations = scopeViolations(files, packet.scope, forbiddenFor(project, packet));
   check('scope', violations.length === 0, violations.length ? violations.join('; ') : `${files.length} file(s) in scope`);
 
-  const markers = skipMarkers(git(['diff', '-U0', `${taskBranch(id)}...${codexBranch(id)}`], slotPath));
-  check('no-skips', markers.length === 0, markers.length ? markers.join('; ') : 'no skip/only/xfail markers added');
+  const range = `${taskBranch(id)}...${codexBranch(id)}`;
+  results.push(...integrityChecks({
+    diffText: git(['diff', '-U0', range], slotPath),
+    nameStatus: git(['diff', '--name-status', '-M', range], slotPath),
+    testGlobs: project.config.test_globs || [],
+    acceptanceSources: acceptanceSources(project, id),
+  }));
 
   const { report, errors } = readReport(project, id);
   check('report', errors.length === 0 && report?.status === 'done',
@@ -295,10 +298,11 @@ export function gates({ cwd, args }) {
   const acceptance = packet.acceptance.map((cmd) => sh(cmd, slotPath));
   for (const a of acceptance) check(`acceptance: ${a.cmd}`, a.exit_code === 0, a.exit_code === 0 ? 'exit 0' : `exit ${a.exit_code}\n${a.tail}`);
 
-  const ok = results.every((r) => r.ok);
+  const ok = results.every((r) => r.ok || r.level === 'warn');
+  const warnings = results.filter((r) => r.level === 'warn').map((r) => `${r.name}: ${r.detail}`);
   const head = git(['rev-parse', codexBranch(id)], slotPath);
   writeJson(join(project.jobDir(id), 'gates.json'), { task_id: id, head, ok, at: now(), results });
-  return { exit: ok ? EXIT.OK : EXIT.FAIL, result: { id, ok, head, results, next: ok ? 'fresh-context review, then aod merge' : 'aod revise with findings' } };
+  return { exit: ok ? EXIT.OK : EXIT.FAIL, result: { id, ok, head, warnings, results, next: ok ? `fresh-context review${warnings.length ? ' (give the reviewer the warnings)' : ''}, then aod merge` : 'aod revise with findings' } };
 }
 
 // ---- merge / reject ----

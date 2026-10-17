@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.0 — M2 guardrails
+
+- Hooks: SessionStart briefing (+ invariants after compaction), git guard, contract guard with
+  `aod unlock|lock`, opt-in Stop "done means green" gate. All silent outside AOD repositories.
+- Slot pre-commit scope guard via per-worktree `core.hooksPath` and `aod scope check`.
+- Integrity checks in gates (fail: deleted tests, skip markers, test-run detection; warn: modified tests,
+  tolerance changes, special-cased acceptance literals). Ledger counts failed jobs.
+- ADR-0003.
+
 ## 0.2.1 — M1.1 dry-run fixes
 
 - Skills renamed to `/aod:init`, `/aod:packet`, `/aod:preflight`, `/aod:delegate`, `/aod:verify`, `/aod:close`,

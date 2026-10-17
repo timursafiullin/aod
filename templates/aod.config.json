@@ -13,5 +13,16 @@
     "idle_minutes": 20
   },
   "forbidden_always": ["schemas/**", "tests/acceptance/**", ".agents/**"],
+  "protected": ["schemas/**", "tests/acceptance/**"],
+  "test_globs": ["**/*.test.*", "**/*.spec.*", "**/test_*.py", "**/*_test.py", "**/*_test.go", "**/tests/**", "**/test/**", "**/__tests__/**"],
+  "guards": {
+    "git": true,
+    "contracts": true
+  },
+  "stop_gate": {
+    "enabled": false,
+    "commands": [],
+    "timeout_minutes": 10
+  },
   "max_rounds": 3
 }

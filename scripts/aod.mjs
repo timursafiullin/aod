@@ -8,6 +8,7 @@ import { AodError } from './lib/proc.mjs';
 import { indexRender, init, slot, status } from './commands/setup.mjs';
 import { packetNew, packetRestore, packetShow, packetValidate, taskCommit, taskSet } from './commands/tasks.mjs';
 import { delegate, gates, merge, reject, revise } from './commands/run.mjs';
+import { lock, scopeCheck, unlock } from './commands/guard.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -38,6 +39,11 @@ Delegation loop
   gates T-xxxx                         Scope, skip markers, report schema, acceptance re-run
   merge T-xxxx [--reviewed-by X] [--attention N] [--journal .agents/journal/F.md] [--prune]
   reject T-xxxx [--cancel]
+
+Guardrails
+  unlock --reason "<why>" [--minutes 30]   Allow edits to contracts/acceptance tests/accepted ADRs for a while
+  lock                                 End the unlock early
+  scope check                          (slot pre-commit hook) staged files must be inside the packet scope
 
 Exit codes: 0 ok, 1 failed, 2 usage, 3 blocked (implementer asked a question), 4 escalate to PO.`;
 
@@ -74,6 +80,9 @@ const COMMANDS = {
   gates,
   merge,
   reject,
+  unlock,
+  lock,
+  'scope check': scopeCheck,
 };
 
 function resolveCommand(args) {

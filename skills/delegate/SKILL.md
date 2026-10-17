@@ -19,6 +19,6 @@ description: Delegate a ready AOD task packet to a Codex implementer in a worktr
      answer to a file and resume (background):
      `node "${CLAUDE_PLUGIN_ROOT}/scripts/aod.mjs" revise T-xxxx --findings <file> --answer`
    - exit 1, `status: failed` -> read `.agents/tasks/jobs/T-xxxx/stderr.log` and the `error`; fix the
-     environment and retry, or `aod reject T-xxxx` and split the task. Two failed jobs in a row: split the task.
+     environment and retry, or `aod reject T-xxxx` and split the task. The result's `failures` counts failed jobs; at 2, reject and split the task.
 
 Never trust the report's claims; verification happens in `/aod:verify`.
