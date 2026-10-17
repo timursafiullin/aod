@@ -6,11 +6,7 @@ parallel coding agents.
 Version 2.0 · 2026-10-17
 
 > English edition of the AOD 2.0 methodology. The Russian edition is
-> [aod-methodology-RU.md](aod-methodology-RU.md); both use the same section numbers, so references such as "§18" or
-> "§21.4" mean the same section in both. Version 1.0 is kept in the git history. Changes from 1.0 come
-> from [aod-2.0-research.md](aod-2.0-research.md) and the decisions in
-> [.agents/decisions/](../.agents/decisions/index.md); the Claude Code plugin in this repository implements them.
-> Changed or new material is marked **2.0**.
+> [aod-methodology-RU.md](aod-methodology-RU.md).
 
 ---
 
