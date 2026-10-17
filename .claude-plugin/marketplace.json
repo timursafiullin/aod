@@ -1,0 +1,16 @@
+{
+  "name": "aod",
+  "owner": {
+    "name": "Timur Safiullin"
+  },
+  "plugins": [
+    {
+      "name": "aod",
+      "source": "./",
+      "description": "Architect-Orchestrated Development workflow for Claude Code + Codex."
+    }
+  ],
+  "metadata": {
+    "description": "Architect-Orchestrated Development for Claude Code + Codex"
+  }
+}

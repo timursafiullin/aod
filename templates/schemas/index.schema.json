@@ -1,0 +1,163 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AOD task ledger",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "next_id",
+    "tasks"
+  ],
+  "properties": {
+    "version": {
+      "type": "integer",
+      "enum": [
+        1
+      ]
+    },
+    "next_id": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "tasks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "title",
+          "owner",
+          "status",
+          "rounds"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^T-[0-9]{4}$"
+          },
+          "title": {
+            "type": "string"
+          },
+          "owner": {
+            "type": "string",
+            "enum": [
+              "codex",
+              "claude"
+            ]
+          },
+          "milestone": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "planned",
+              "ready",
+              "in_progress",
+              "review",
+              "blocked",
+              "done",
+              "failed",
+              "escalated",
+              "cancelled"
+            ]
+          },
+          "depends_on": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "slot": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "thread_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "model": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "effort": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "rounds": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "REVISE rounds only; answering a blocked question does not count."
+          },
+          "verdicts": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "ACCEPT",
+                "REVISE",
+                "REJECT"
+              ]
+            }
+          },
+          "created": {
+            "type": "string"
+          },
+          "started": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "finished": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "usage": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "input_tokens": {
+                "type": "integer"
+              },
+              "cached_input_tokens": {
+                "type": "integer"
+              },
+              "output_tokens": {
+                "type": "integer"
+              },
+              "reasoning_output_tokens": {
+                "type": "integer"
+              }
+            }
+          },
+          "attention_minutes": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "notes": {
+            "type": "string"
+          },
+          "failures": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Failed Codex jobs (exit != 0, crash or report status failed)."
+          }
+        }
+      }
+    }
+  }
+}

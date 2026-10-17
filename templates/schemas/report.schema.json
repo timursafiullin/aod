@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AOD implementer report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["task_id", "status", "summary", "commits", "files_changed", "checks", "deviations", "open_questions", "risks"],
+  "properties": {
+    "task_id": { "type": "string", "pattern": "^T-[0-9]{4}$" },
+    "status": { "type": "string", "enum": ["done", "partial", "blocked", "failed"] },
+    "summary": { "type": "string" },
+    "commits": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["sha", "message"],
+        "properties": { "sha": { "type": "string" }, "message": { "type": "string" } }
+      }
+    },
+    "files_changed": { "type": "array", "items": { "type": "string" } },
+    "checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["cmd", "exit_code", "result"],
+        "properties": {
+          "cmd": { "type": "string" },
+          "exit_code": { "type": "integer" },
+          "result": { "type": "string" }
+        }
+      }
+    },
+    "deviations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["what", "why"],
+        "properties": { "what": { "type": "string" }, "why": { "type": "string" } }
+      }
+    },
+    "open_questions": { "type": "array", "items": { "type": "string" } },
+    "risks": { "type": "array", "items": { "type": "string" } }
+  }
+}

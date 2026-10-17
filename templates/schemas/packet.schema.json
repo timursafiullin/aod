@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AOD task packet front matter",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "title", "owner", "scope", "acceptance", "budget_minutes"],
+  "properties": {
+    "id": { "type": "string", "pattern": "^T-[0-9]{4}$" },
+    "title": { "type": "string", "minLength": 3 },
+    "owner": { "type": "string", "enum": ["codex", "claude"] },
+    "milestone": { "type": "string" },
+    "depends_on": { "type": "array", "items": { "type": "string", "pattern": "^T-[0-9]{4}$" } },
+    "spec": { "type": "string" },
+    "contracts": { "type": "array", "items": { "type": "string" } },
+    "scope": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+    "forbidden": { "type": "array", "items": { "type": "string" } },
+    "constraints": { "type": "array", "items": { "type": "string" } },
+    "acceptance": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+    "deliverables": { "type": "array", "items": { "type": "string" } },
+    "budget_minutes": { "type": "integer", "minimum": 5 },
+    "model": { "type": "string" },
+    "effort": { "type": "string", "enum": ["minimal", "low", "medium", "high", "xhigh"] }
+  }
+}
