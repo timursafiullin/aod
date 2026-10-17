@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { runDoctor, formatDoctor } from './lib/doctor.mjs';
 import { AodError } from './lib/proc.mjs';
 import { indexRender, init, slot, status } from './commands/setup.mjs';
-import { packetNew, packetValidate, taskCommit, taskSet } from './commands/tasks.mjs';
+import { packetNew, packetRestore, packetShow, packetValidate, taskCommit, taskSet } from './commands/tasks.mjs';
 import { delegate, gates, merge, reject, revise } from './commands/run.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -19,14 +19,16 @@ const USAGE = `aod <command> [options]
 
 Setup
   doctor [--json]                      Check node, git and (optionally) codex
-  init [--slots N]                     Scaffold .agents/, AGENTS.md, CLAUDE.md, config and worktree slots
+  init [--slots N]                     Scaffold .agents/, AGENTS.md, CLAUDE.md, config and the task ledger
   slot list|create [name|--all]|reset <name> [--force]
-  status [T-xxxx]                      Open tasks, slots and running jobs
+  status [T-xxxx] [--all]              Open (or all) tasks, slots and running jobs
   index render                         Regenerate .agents/tasks/index.md from index.json
 
 Tasks
   packet new "<title>" [--owner codex|claude] [--milestone M1]
   packet validate T-xxxx
+  packet show T-xxxx                   Print the packet (working tree or task/T-xxxx)
+  packet restore T-xxxx                Put a committed packet back in the working tree to edit it
   task commit T-xxxx [paths...]        Commit packet + acceptance tests to task/T-xxxx, stay on base branch
   task set T-xxxx status=ready [notes=...] [attention_minutes=N]
 
@@ -34,7 +36,7 @@ Delegation loop
   delegate T-xxxx [--slot codex-1] [--model M] [--effort E] [--force]
   revise T-xxxx --findings <file> [--answer]   Resume the Codex thread with review findings (or an answer)
   gates T-xxxx                         Scope, skip markers, report schema, acceptance re-run
-  merge T-xxxx [--reviewed-by X] [--attention N] [--prune]
+  merge T-xxxx [--reviewed-by X] [--attention N] [--journal .agents/journal/F.md] [--prune]
   reject T-xxxx [--cancel]
 
 Exit codes: 0 ok, 1 failed, 2 usage, 3 blocked (implementer asked a question), 4 escalate to PO.`;
@@ -63,6 +65,8 @@ const COMMANDS = {
   'index render': indexRender,
   'packet new': packetNew,
   'packet validate': packetValidate,
+  'packet show': packetShow,
+  'packet restore': packetRestore,
   'task commit': taskCommit,
   'task set': taskSet,
   delegate,
@@ -103,7 +107,8 @@ export async function main(argv, cwd = process.cwd()) {
   try {
     const out = await handler({ cwd, args: rest, flags });
     const { exit, result } = out && 'exit' in out && 'result' in out ? out : { exit: 0, result: out };
-    console.log(JSON.stringify(result, null, 2));
+    if (result && typeof result.raw === 'string') process.stdout.write(result.raw.endsWith('\n') ? result.raw : `${result.raw}\n`);
+    else console.log(JSON.stringify(result, null, 2));
     return exit;
   } catch (e) {
     if (!(e instanceof AodError)) throw e;

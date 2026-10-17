@@ -16,18 +16,18 @@ repository (`.agents/`), so no session starts from zero.
 ```
 
 Requirements: Node.js >= 20 and git >= 2.38. For delegation, install [Codex CLI](https://github.com/openai/codex)
-and run `codex login`. Check everything with `/aod-doctor`.
+and run `codex login`. Check everything with `/aod:doctor`.
 
 ## The loop
 
 | Step | Skill | What happens |
 | --- | --- | --- |
-| 0 | `/aod-init` | Scaffolds `.agents/`, `AGENTS.md`, `CLAUDE.md`, config, task ledger and worktree slots |
-| 1 | `/aod-packet` | Task packet `T-xxxx.md` (scope globs, acceptance commands) + acceptance tests on `task/T-xxxx` |
-| 2 | `/aod-preflight` | Packet, contracts and tests are consistent; tests fail for the expected reason |
-| 3 | `/aod-delegate` | `codex exec` in a slot, in the background, with a schema-enforced JSON report |
-| 4 | `/aod-verify` | Gates (scope, skip markers, report, acceptance re-run), then a fresh-context reviewer |
-| 5 | `/aod-close` | Squash merge with `Implemented-by` / `Reviewed-by` trailers, ledger update, slot reset |
+| 0 | `/aod:init` | Scaffolds `.agents/`, `AGENTS.md`, `CLAUDE.md`, config and the task ledger |
+| 1 | `/aod:packet` | Task packet `T-xxxx.md` (scope globs, acceptance commands) + acceptance tests on `task/T-xxxx` |
+| 2 | `/aod:preflight` | Packet, contracts and tests are consistent; tests fail for the expected reason |
+| 3 | `/aod:delegate` | `codex exec` in a slot, in the background, with a schema-enforced JSON report |
+| 4 | `/aod:verify` | Gates (scope, skip markers, report, acceptance re-run), then a fresh-context reviewer |
+| 5 | `/aod:close` | One squash commit (code, report, ledger, journal) with `Implemented-by` / `Reviewed-by` trailers; slot reset |
 
 Revisions resume the same Codex thread (max 3 rounds, then escalate to you). Try it on
 [examples/toy-calculator](examples/toy-calculator).

@@ -1,6 +1,6 @@
 ---
-name: aod-doctor
-description: Check whether this machine and repository are ready for Architect-Orchestrated Development (node, git, worktrees, Codex). Use when the user asks if AOD is set up, before /aod-init, or when an AOD command fails because of the environment.
+name: doctor
+description: Check whether this machine and repository are ready for Architect-Orchestrated Development (node, git, worktrees, Codex). Use when the user asks if AOD is set up, before /aod:init, or when an AOD command fails because of the environment.
 ---
 
 # AOD doctor

@@ -41,7 +41,7 @@ function setup(scenario) {
 function prepareTask({ repo, git, aod }) {
   let r = aod('init', '--slots', '1');
   assert.equal(r.code, 0, r.stderr);
-  assert.ok(existsSync(join(repo, '..', 'toy-worktrees', 'codex-1')), 'slot created');
+  assert.ok(!existsSync(join(repo, '..', 'toy-worktrees')), 'slots are created lazily by delegate');
   git('add', '-A');
   git('commit', '-q', '-m', 'chore: aod scaffold');
 
@@ -63,8 +63,10 @@ function prepareTask({ repo, git, aod }) {
   assert.ok(!existsSync(packetPath), 'packet lives on task branch, not on main');
 
   // Amend: restore, edit and commit again onto the existing task branch.
-  const restored = git('show', 'task/T-0001:.agents/tasks/T-0001.md');
-  writeFileSync(packetPath, `${restored.replace('budget_minutes: 60', 'budget_minutes: 30')}\n`);
+  r = aod('packet', 'restore', 'T-0001');
+  assert.equal(r.code, 0, r.stderr);
+  assert.equal(aod('packet', 'restore', 'T-0001').code, 1, 'refuses to overwrite a restored packet');
+  writeFileSync(packetPath, readFileSync(packetPath, 'utf8').replace('budget_minutes: 60', 'budget_minutes: 30'));
   r = aod('task', 'commit', 'T-0001');
   assert.equal(r.code, 0, r.stderr);
   assert.equal(git('rev-list', '--count', 'main..task/T-0001'), '2');
@@ -90,13 +92,39 @@ test('happy path: delegate -> gates -> merge', () => {
     assert.equal(r.code, 0, r.stdout);
     assert.ok(r.json.results.every((x) => x.ok));
 
-    r = ctx.aod('merge', 'T-0001', '--reviewed-by', 'claude (fresh context)');
+    // packet show reads the packet from task/T-0001 without git path syntax.
+    r = ctx.aod('packet', 'show', 'T-0001');
+    assert.equal(r.code, 0, r.stderr);
+    assert.match(r.stdout, /^---\nid: T-0001\n/);
+
+    // A slot touched after gates (e.g. by a reviewer) blocks the merge.
+    const slot = join(ctx.repo, '..', 'toy-worktrees', 'codex-1');
+    writeFileSync(join(slot, 'stray.txt'), 'x');
+    r = ctx.aod('merge', 'T-0001');
+    assert.equal(r.code, 1);
+    assert.match(r.stderr, /slot codex-1 changed after gates/);
+    rmSync(join(slot, 'stray.txt'));
+
+    // Unrelated dirt on main blocks the merge; the journal passed with --journal does not.
+    const journal = '.agents/journal/2026-10-17-test.md';
+    writeFileSync(join(ctx.repo, journal), '# 2026-10-17 — test\n## Done\n- T-0001 merged\n');
+    r = ctx.aod('merge', 'T-0001');
+    assert.equal(r.code, 1);
+    assert.match(r.stderr, /2026-10-17-test\.md/);
+
+    r = ctx.aod('merge', 'T-0001', '--reviewed-by', 'claude (fresh context)', '--journal', journal);
     assert.equal(r.code, 0, r.stderr);
     assert.equal(ctx.git('log', '-1', '--format=%s'), 'T-0001: Implement add');
     assert.match(ctx.git('log', '-1', '--format=%b'), /Implemented-by: codex\nReviewed-by: claude/);
+    assert.match(ctx.git('show', '--stat', '--format=', 'HEAD'), /2026-10-17-test\.md/);
     assert.ok(existsSync(join(ctx.repo, 'src', 'add.mjs')));
     assert.ok(existsSync(join(ctx.repo, '.agents', 'tasks', 'T-0001.report.json')));
     assert.equal(ctx.git('status', '--porcelain'), '');
+
+    r = ctx.aod('status');
+    assert.deepEqual(r.json.tasks, []);
+    assert.equal(r.json.hint, 'aod status --all');
+    assert.equal(ctx.aod('status', '--all').json.tasks[0].status, 'done');
 
     const index = JSON.parse(readFileSync(join(ctx.repo, '.agents', 'tasks', 'index.json'), 'utf8'));
     assert.equal(index.tasks[0].status, 'done');

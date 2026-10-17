@@ -42,6 +42,23 @@ export function packetValidate({ cwd, args }) {
   return { id, valid: true, scope: data.scope, acceptance: data.acceptance };
 }
 
+// Print the packet wherever it lives (working tree or task branch); avoids `git show branch:path`,
+// which Git Bash on Windows mangles.
+export function packetShow({ cwd, args }) {
+  const project = requireInitialized(openProject(cwd));
+  return { raw: readPacketText(project, assertTaskId(args[0])) };
+}
+
+// Bring a committed packet back into the working tree for editing; `aod task commit` then amends the branch.
+export function packetRestore({ cwd, args }) {
+  const project = requireInitialized(openProject(cwd));
+  const id = assertTaskId(args[0]);
+  const path = project.packetPath(id);
+  if (existsSync(path)) throw new AodError(`${project.packetRel(id)} is already in the working tree`);
+  writeFileSync(path, `${readPacketText(project, id).replace(/\s*$/, '')}\n`);
+  return { id, restored: project.packetRel(id), next: `edit it, then aod task commit ${id} [changed test paths...]` };
+}
+
 // Commit packet + acceptance tests onto task/T-xxxx without touching the base branch or switching branches:
 // a temporary index builds the commit, then the files leave the main working tree (they live on task/T-xxxx).
 // Run again with edited files to add a fix-up commit to an existing task branch.
@@ -79,7 +96,7 @@ export function taskCommit({ cwd, args }) {
       removed.push(p);
     }
   }
-  return { id, branch, committed: paths, moved_off_base: removed, next: `Run /aod-preflight, then \`aod task set ${id} status=ready\`` };
+  return { id, branch, committed: paths, moved_off_base: removed, next: `Run /aod:preflight, then \`aod task set ${id} status=ready\`` };
 }
 
 export function taskSet({ cwd, args }) {

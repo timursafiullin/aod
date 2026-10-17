@@ -18,9 +18,12 @@ Agent: architect   Task: none
 - Second attempt: all gates green, 2 files in scope, ~79k input tokens (mostly cached), ACCEPT, merged.
 
 ## Not done
-- `aod-reviewer` subagent not yet exercised from an installed plugin (review was done by the architect inline).
-- Plugin install test via `/plugin marketplace add` in an interactive session.
 - Ledger `model` is empty when Codex uses its default model; record the actual model if events expose it.
+
+## M1.1 (dry run with the installed plugin on aod-toy)
+- Installed via local marketplace; one task through the skills with real Codex + reviewer subagent: ACCEPT, merged.
+- Fixed all 11 findings (see CHANGELOG 0.2.1). Local-path installs run from the source checkout, so edits apply
+  immediately; `claude plugin marketplace update aod` refreshes skill/agent names.
 
 ## Decisions
 - ADR-0002 updated: AOD commits implementer changes; `task commit` uses plumbing.
@@ -29,6 +32,5 @@ Agent: architect   Task: none
 - Codex project skill path (`.agents/skills` vs `.codex/skills`) — still open (M4).
 
 ## Next step
-- Install the plugin locally (`/plugin marketplace add C:/coding/own_projects/aod`, `/plugin install aod@aod`),
-  run `/aod-init` + one task through the skills in a fresh session, then start M2 (hooks, slot pre-commit scope
-  guard, integrity checks).
+- Start M2: hooks (git guard, contract guard, Stop green, SessionStart briefing), slot pre-commit scope guard,
+  integrity checks. Re-run the aod-toy dry run with `/aod:init` typed by the user to confirm finding 1 is gone.

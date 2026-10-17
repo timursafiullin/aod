@@ -76,15 +76,12 @@ export function init({ cwd, slots }) {
     report.created.push(`.gitignore (${ignoreLine})`);
   }
 
-  const fresh = openProject(cwd);
-  if (hasCommits(root)) {
-    for (const name of fresh.slotNames()) {
-      const r = createSlot(fresh, name);
-      (r.created ? report.created : report.skipped).push(`slot ${name}`);
-    }
-  } else {
-    report.notes.push('Repository has no commits yet: commit the scaffold, then run `aod slot create --all`.');
-  }
+  // Slots are not created here: `aod delegate` creates them on demand from the then-current base branch,
+  // so they never start from a commit that predates the scaffold.
+  const base = openProject(cwd).config.base_branch;
+  report.notes.push(hasCommits(root)
+    ? `Commit the scaffold on ${base} (e.g. "chore: set up AOD"). Worktree slots are created on the first delegation.`
+    : `The repository has no commits yet: make an initial commit on ${base}, then commit the scaffold.`);
   return report;
 }
 
@@ -176,10 +173,12 @@ export function indexRender({ cwd }) {
   return { written: '.agents/tasks/index.md', tasks: index.tasks.length };
 }
 
-export function status({ cwd, args }) {
+export function status({ cwd, args, flags = {} }) {
   const project = requireInitialized(openProject(cwd));
   const index = loadIndex(project);
-  const tasks = args[0] ? index.tasks.filter((t) => t.id === args[0]) : index.tasks.filter((t) => t.status !== 'done');
+  const open = (t) => !['done', 'cancelled'].includes(t.status);
+  const tasks = args[0] ? index.tasks.filter((t) => t.id === args[0]) : index.tasks.filter((t) => flags.all || open(t));
+  const hidden = index.tasks.filter((t) => !open(t)).length;
   return {
     tasks: tasks.map((t) => ({
       id: t.id, title: t.title, status: t.status, slot: t.slot, rounds: t.rounds,
@@ -187,5 +186,6 @@ export function status({ cwd, args }) {
     })),
     slots: project.slotNames().map((n) => slotInfo(project, n)),
     running: runningJobs(project).map((j) => ({ task: j.task_id, slot: j.slot, started: j.started })),
+    ...(!flags.all && !args[0] && hidden ? { hidden_closed_tasks: hidden, hint: 'aod status --all' } : {}),
   };
 }

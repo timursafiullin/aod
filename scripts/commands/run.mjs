@@ -174,7 +174,7 @@ export async function delegate({ cwd, args, flags }) {
   const index = loadIndex(project);
   const task = getTask(index, id);
   if (task.status !== 'ready' && !flags.force) {
-    throw new AodError(`${id} is "${task.status}", not "ready"; run /aod-preflight first (or pass --force)`);
+    throw new AodError(`${id} is "${task.status}", not "ready"; run /aod:preflight first (or pass --force)`);
   }
   for (const dep of task.depends_on || []) {
     if (getTask(index, dep).status !== 'done') throw new AodError(`${id} depends on ${dep}, which is not done`);
@@ -276,8 +276,10 @@ export function gates({ cwd, args }) {
   const commits = git(['log', '--oneline', `${taskBranch(id)}..${codexBranch(id)}`], slotPath).split('\n').filter(Boolean);
   check('commits', commits.length > 0, commits.length ? `${commits.length} commit(s)` : 'no commits on the implementer branch');
   check('slot-clean', isClean(slotPath), isClean(slotPath) ? 'clean' : 'uncommitted changes in the slot');
-  const onBranch = git(['branch', '--show-current'], slotPath);
-  check('slot-branch', onBranch === codexBranch(id), onBranch);
+  const slotHead = git(['rev-parse', 'HEAD'], slotPath);
+  const branchHead = git(['rev-parse', codexBranch(id)], slotPath);
+  check('slot-head', slotHead === branchHead,
+    slotHead === branchHead ? `at ${codexBranch(id)}` : `slot HEAD is not ${codexBranch(id)}; run git -C <slot> switch ${codexBranch(id)}`);
 
   const files = changedFiles(slotPath, id);
   const violations = scopeViolations(files, packet.scope, forbiddenFor(project, packet));
@@ -301,9 +303,14 @@ export function gates({ cwd, args }) {
 
 // ---- merge / reject ----
 
-function ledgerOnlyDirty(root) {
-  const lines = git(['status', '--porcelain'], root).split('\n').filter(Boolean);
-  return lines.filter((l) => !/\.agents\/tasks\/index\.(json|md)$/.test(l));
+// Ledger policy: index.json/md may be dirty on the base branch; aod merge commits them with the task.
+function unexpectedDirt(root, allowed = []) {
+  const lines = git(['status', '--porcelain', '--untracked-files=all'], root).split('\n').filter(Boolean);
+  return lines.filter((l) => {
+    // git() trims output, so the first line may have lost its leading status space.
+    const p = l.replace(/^[ MADRCUT?!]{1,2} /, '').replace(/^"|"$/g, '');
+    return !/^\.agents\/tasks\/index\.(json|md)$/.test(p) && !allowed.includes(p);
+  });
 }
 
 export function merge({ cwd, args, flags }) {
@@ -318,8 +325,17 @@ export function merge({ cwd, args, flags }) {
   if (!gate.ok) throw new AodError(`gates failed for ${id}; fix before merging`);
   if (gate.head !== head) throw new AodError(`${codexBranch(id)} moved since gates ran; run aod gates ${id} again`);
   if (git(['branch', '--show-current'], root) !== config.base_branch) throw new AodError(`main checkout must be on ${config.base_branch}`);
-  const dirty = ledgerOnlyDirty(root);
+  const journal = flags.journal ? [String(flags.journal).replace(/\\/g, '/')] : [];
+  for (const j of journal) {
+    if (!/^\.agents\/journal\/[^/]+\.md$/.test(j)) throw new AodError(`--journal must be a file in .agents/journal/, got ${j}`, 2);
+    if (!existsSync(join(root, j))) throw new AodError(`${j} does not exist`);
+  }
+  const dirty = unexpectedDirt(root, journal);
   if (dirty.length) throw new AodError(`main checkout has uncommitted changes:\n  ${dirty.join('\n  ')}`);
+  const slotPath = project.slotPath(task.slot);
+  if (!isClean(slotPath) || git(['rev-parse', 'HEAD'], slotPath) !== head) {
+    throw new AodError(`slot ${task.slot} changed after gates (dirty or not at ${codexBranch(id)}); restore it or run aod gates ${id} again`);
+  }
   const probe = git(['merge-tree', '--write-tree', config.base_branch, codexBranch(id)], root, { allowFail: true });
   if (!probe.ok) throw new AodError(`${codexBranch(id)} conflicts with ${config.base_branch}:\n${probe.out}`);
 
@@ -331,7 +347,7 @@ export function merge({ cwd, args, flags }) {
     status: 'done', finished: now(), verdicts: [...(t.verdicts || []), 'ACCEPT'],
     ...(flags.attention ? { attention_minutes: Number(flags.attention) } : {}),
   }));
-  git(['add', '--', reportRel, '.agents/tasks/index.json', '.agents/tasks/index.md'], root);
+  git(['add', '--', reportRel, '.agents/tasks/index.json', '.agents/tasks/index.md', ...journal], root);
   const trailers = [`Implemented-by: codex${task.model ? ` (${task.model})` : ''}`];
   if (flags['reviewed-by']) trailers.push(`Reviewed-by: ${flags['reviewed-by']}`);
   git(['commit', '-m', `${id}: ${task.title}`, '-m', trailers.join('\n')], root);
@@ -341,7 +357,7 @@ export function merge({ cwd, args, flags }) {
   if (flags.prune) {
     git(['branch', '-D', codexBranch(id), taskBranch(id)], root);
   }
-  return { exit: EXIT.OK, result: { id, merged: sha, slot: `${slot.name} reset to ${config.base_branch}`, pruned: !!flags.prune } };
+  return { exit: EXIT.OK, result: { id, merged: sha, journal: journal[0] || null, slot: `${slot.name} reset to ${config.base_branch}`, pruned: !!flags.prune } };
 }
 
 export function reject({ cwd, args, flags }) {

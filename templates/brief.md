@@ -46,5 +46,6 @@ command, then answer.
 
 <output_format>
 Answer only with the JSON report required by the output schema. task_id is "{id}". summary is at most 600
-characters. List every command you ran in checks with its real exit code. commits is [] (AOD commits for you).
+characters and describes the change, not git state. List every command you ran in checks with its real exit
+code. commits is [] (AOD commits for you).
 </output_format>

@@ -67,7 +67,7 @@ export function openProject(cwd = process.cwd()) {
 }
 
 export function requireInitialized(project) {
-  if (!project.initialized) throw new AodError('AOD is not initialised here; run `aod init` (or /aod-init) first');
+  if (!project.initialized) throw new AodError('AOD is not initialised here; run `aod init` (or /aod:init) first');
   return project;
 }
 
