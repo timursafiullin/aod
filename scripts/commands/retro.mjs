@@ -14,7 +14,15 @@ const median = (xs) => {
   return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
 };
 const minutesBetween = (a, b) => (a && b ? Math.round((Date.parse(b) - Date.parse(a)) / 60000) : null);
-const tokens = (t) => (t.usage ? (t.usage.input_tokens || 0) + (t.usage.output_tokens || 0) : 0);
+// Codex reports cached_input_tokens as a subset of input_tokens. Re-sent context is mostly cache hits, so
+// "uncached" (fresh input + output) is the number that tracks cost; the pool share is computed from it.
+const tokens = (t) => {
+  const u = t.usage || {};
+  const input = u.input_tokens || 0;
+  const cached = Math.min(u.cached_input_tokens || 0, input);
+  const total = input + (u.output_tokens || 0);
+  return { total, cached, uncached: total - cached };
+};
 const has = (t, type) => (t.events || []).some((e) => e.type === type);
 const count = (t, type) => (t.events || []).filter((e) => e.type === type).length;
 
@@ -24,7 +32,10 @@ export function computeMetrics(tasks, { pool } = {}) {
   const doneCodex = done.filter((t) => t.owner === 'codex');
   const elapsed = doneCodex.map((t) => minutesBetween(t.started, t.finished)).filter((m) => m !== null && m >= 0);
   const attention = tasks.map((t) => t.attention_minutes).filter((m) => typeof m === 'number');
-  const tokenTotal = tasks.reduce((a, t) => a + tokens(t), 0);
+  const tok = tasks.map(tokens).reduce((a, x) => ({
+    total: a.total + x.total, cached: a.cached + x.cached, uncached: a.uncached + x.uncached,
+  }), { total: 0, cached: 0, uncached: 0 });
+  const perDone = (n) => (doneCodex.length ? Math.round(n / doneCodex.length) : null);
   const byModel = {};
   for (const t of doneCodex) {
     const m = (byModel[t.model || 'default'] ||= { tasks: 0, first_pass: 0, rounds: [] });
@@ -49,8 +60,11 @@ export function computeMetrics(tasks, { pool } = {}) {
     quota_stops: tasks.reduce((a, t) => a + count(t, 'unavailable'), 0),
     architect_share_pct: pct(done.filter((t) => t.owner === 'claude').length, done.length),
     attention_minutes: { total: attention.reduce((a, b) => a + b, 0), per_task: avg(attention), recorded_on: attention.length },
-    tokens: { total: tokenTotal, per_done_task: doneCodex.length ? Math.round(tokenTotal / doneCodex.length) : null },
-    pool_pct: pool ? pct(tokenTotal, pool) : null,
+    tokens: {
+      total: tok.total, cached_input: tok.cached, uncached: tok.uncached, cache_hit_pct: pct(tok.cached, tok.total),
+      per_done_task: perDone(tok.total), uncached_per_done_task: perDone(tok.uncached),
+    },
+    pool_pct: pool ? pct(tok.uncached, pool) : null,
     waves: { count: waves.length, parallel_tasks: tasks.filter((t) => t.wave).length },
     by_model: Object.fromEntries(Object.entries(byModel).map(([k, v]) => [k, {
       tasks: v.tasks, first_pass_pct: pct(v.first_pass, v.tasks), avg_rounds: avg(v.rounds),
@@ -70,7 +84,7 @@ export function signals(m) {
   if (m.failed_jobs > 0) out.push(`${m.failed_jobs} failed job(s): check stderr.log patterns (environment, budget, idle timeouts).`);
   if (m.architect_share_pct !== null && m.architect_share_pct > 40) out.push(`Architect did ${m.architect_share_pct}% of closed tasks: revisit the delegation threshold.`);
   if (m.done && !m.attention_minutes.recorded_on) out.push('No attention minutes recorded: pass --attention N to aod merge to learn what the loop costs you.');
-  if (m.pool_pct !== null && m.pool_pct > 80) out.push(`Token use is ${m.pool_pct}% of the configured pool: consider aod route preset balanced or economy.`);
+  if (m.pool_pct !== null && m.pool_pct > 80) out.push(`Uncached token use is ${m.pool_pct}% of the configured pool: consider aod route preset balanced or economy.`);
   if (!out.length) out.push('No warning signals.');
   return out;
 }
@@ -87,7 +101,8 @@ function renderMarkdown(m, sig, label) {
     ['Gate failures / failed jobs / rejects', `${m.gate_failures} / ${m.failed_jobs} / ${m.rejected}`, 'Implementer and environment health'],
     ['Architect share of closed tasks', v(m.architect_share_pct, '%'), 'Delegation efficiency'],
     ['Attention minutes (total / per task)', `${m.attention_minutes.total} / ${v(m.attention_minutes.per_task)}`, `recorded on ${m.attention_minutes.recorded_on} task(s)`],
-    ['Tokens (total / per done task)', `${m.tokens.total} / ${v(m.tokens.per_done_task)}`, m.pool_pct === null ? 'set retro.weekly_token_pool for pool %' : `${m.pool_pct}% of the pool`],
+    ['Uncached tokens (total / per done task)', `${m.tokens.uncached} / ${v(m.tokens.uncached_per_done_task)}`, m.pool_pct === null ? 'Cost driver; set retro.weekly_token_pool for pool %' : `${m.pool_pct}% of the pool`],
+    ['Cached input tokens', `${m.tokens.cached_input} (${v(m.tokens.cache_hit_pct, '%')} of ${m.tokens.total})`, 'Re-sent context served from cache'],
     ['Waves', `${m.waves.count} (${m.waves.parallel_tasks} tasks)`, 'Parallel delegation'],
   ];
   const models = Object.entries(m.by_model).map(([k, x]) => `| ${k} | ${x.tasks} | ${v(x.first_pass_pct, '%')} | ${v(x.avg_rounds)} |`);

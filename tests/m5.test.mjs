@@ -92,6 +92,7 @@ test('wave: 4 tasks (one dependent) run on 2 slots in two parallel waves, then r
     assert.equal(r.json.metrics.attention_minutes.total, 16);
     assert.equal(r.json.metrics.waves.count, 2);
     assert.equal(r.json.metrics.tokens.total, 4 * 1050);
+    assert.equal(r.json.metrics.tokens.uncached, 4 * 1050, 'the fake reports no cache hits');
     const md = readFileSync(join(ctx.repo, r.json.written), 'utf8');
     assert.match(md, /\| First-pass acceptance \| 100% \|/);
     assert.match(md, /## Signals/);
@@ -188,6 +189,25 @@ test('retro metrics and signals from a hand-made ledger', () => {
   assert.match(s, /1 scope violation/);
   assert.match(s, /Blocked rate 25%/);
   assert.match(s, /No attention minutes recorded/);
+});
+
+test('retro splits cached input from uncached tokens and bases the pool share on uncached', () => {
+  // Usage as reported by codex-cli 0.163 for the live wave on aod-toy3: cached_input_tokens is part of input_tokens.
+  const task = (id, usage) => ({ id, title: 'x', owner: 'codex', status: 'done', rounds: 0, usage });
+  const tasks = [
+    task('T-0001', { input_tokens: 92985, cached_input_tokens: 67328, output_tokens: 1667, reasoning_output_tokens: 166 }),
+    task('T-0002', { input_tokens: 93340, cached_input_tokens: 44160, output_tokens: 1742, reasoning_output_tokens: 24 }),
+    task('T-0003', { input_tokens: 100, cached_input_tokens: 500, output_tokens: 10 }), // inconsistent: clamp cached to input
+    { id: 'T-0004', title: 'y', owner: 'codex', status: 'ready', rounds: 0 },
+  ];
+  const m = computeMetrics(tasks, { pool: 79394 });
+  assert.equal(m.tokens.total, 189734 + 110);
+  assert.equal(m.tokens.cached_input, 67328 + 44160 + 100);
+  assert.equal(m.tokens.uncached, 78246 + 10);
+  assert.equal(m.tokens.uncached_per_done_task, Math.round(78256 / 3));
+  assert.equal(m.tokens.cache_hit_pct, 58.8);
+  assert.equal(m.pool_pct, 98.6);
+  assert.match(signals(m).join('\n'), /Uncached token use is 98\.6% of the configured pool/);
 });
 
 test('mutation score parsing for common tools and a custom regex', () => {

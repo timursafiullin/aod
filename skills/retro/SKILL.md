@@ -16,7 +16,8 @@ means `node "${CLAUDE_PLUGIN_ROOT}/scripts/aod.mjs"`.
      context in packets.
    - Blocked or escalations: decisions are missing; write ADRs before delegating.
    - Scope violations: look at each one. Either the scope glob was too narrow, or the implementer drifted.
-   - High token use: suggest `aod route preset balanced` or `economy`. The user decides.
+   - High uncached token use (the cost driver; cached input is re-sent context): suggest
+     `aod route preset balanced` or `economy`. The user decides.
 3. A metric of `n/a`, or "fewer than 3 closed tasks", means the data is too thin. Say so rather than
    over-reading it.
 4. Attention minutes come from `aod merge --attention N`. If none were recorded, ask the user to estimate
