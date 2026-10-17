@@ -27,9 +27,9 @@ export function isClean(cwd) {
 
 // Run a shell command (acceptance commands are shell strings by design).
 export function sh(command, cwd, timeoutMs = 30 * 60 * 1000) {
-  const res = spawnSync(command, { cwd, shell: true, encoding: 'utf8', timeout: timeoutMs });
+  const res = spawnSync(command, { cwd, shell: true, encoding: 'utf8', timeout: timeoutMs, maxBuffer: 64 * 1024 * 1024 });
   const output = `${res.stdout || ''}${res.stderr || ''}`;
-  return { cmd: command, exit_code: res.status ?? -1, tail: output.slice(-2000) };
+  return { cmd: command, exit_code: res.status ?? -1, tail: output.slice(-2000), output, timed_out: res.error?.code === 'ETIMEDOUT' };
 }
 
 export const now = () => new Date().toISOString();

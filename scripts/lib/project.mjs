@@ -1,5 +1,5 @@
 // Project context: repository root, config, ledger (index.json) and task packets.
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseFrontmatter } from './frontmatter.mjs';
@@ -115,12 +115,60 @@ export function getTask(index, id) {
   return task;
 }
 
-export function updateTask(project, id, patch) {
-  const index = loadIndex(project);
-  const task = getTask(index, id);
-  Object.assign(task, typeof patch === 'function' ? patch(task) : patch);
-  saveIndex(project, index);
-  return task;
+// Parallel jobs (aod wave run) update the ledger from several processes: serialise read-modify-write with a lock
+// directory (mkdir is atomic on every platform). A lock older than staleMs belongs to a dead process and is broken.
+const heldLocks = new Set();
+const sleepSync = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+
+export function withIndexLock(project, fn, { timeoutMs = 30_000, staleMs = 60_000 } = {}) {
+  const lock = `${project.indexPath}.lock`;
+  if (heldLocks.has(lock)) return fn();
+  mkdirSync(dirname(lock), { recursive: true });
+  const start = Date.now();
+  for (;;) {
+    try {
+      mkdirSync(lock);
+      break;
+    } catch (e) {
+      if (e.code !== 'EEXIST') throw e;
+    }
+    let age = 0;
+    try {
+      age = Date.now() - statSync(lock).mtimeMs;
+    } catch {
+      continue; // released between mkdir and stat
+    }
+    if (age > staleMs) {
+      rmSync(lock, { recursive: true, force: true });
+      continue;
+    }
+    if (Date.now() - start > timeoutMs) throw new AodError(`index.json is locked by another aod process (${lock})`);
+    sleepSync(20 + Math.floor(Math.random() * 40));
+  }
+  heldLocks.add(lock);
+  try {
+    return fn();
+  } finally {
+    heldLocks.delete(lock);
+    rmSync(lock, { recursive: true, force: true });
+  }
+}
+
+// Ledger history for aod retro: one entry per loop event (delegated, failed, blocked, revise, gates-fail, ...).
+export function withEvent(task, type, detail) {
+  const ev = { at: now(), type, ...(detail ? { detail: String(detail).slice(0, 300) } : {}) };
+  return [...(task.events || []), ev];
+}
+
+export function updateTask(project, id, patch, event) {
+  return withIndexLock(project, () => {
+    const index = loadIndex(project);
+    const task = getTask(index, id);
+    Object.assign(task, typeof patch === 'function' ? patch(task) : patch);
+    if (event) task.events = withEvent(task, event.type, event.detail);
+    saveIndex(project, index);
+    return task;
+  });
 }
 
 export function newTaskRecord(id, title, extra = {}) {

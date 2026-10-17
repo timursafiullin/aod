@@ -3,7 +3,7 @@ import { existsSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'no
 import { join } from 'node:path';
 import {
   TEMPLATES, assertTaskId, checkPacket, loadIndex, newTaskRecord, openProject, readPacketText, requireInitialized,
-  saveIndex, taskBranch, taskId, updateTask,
+  saveIndex, taskBranch, taskId, updateTask, withIndexLock,
 } from '../lib/project.mjs';
 import { AodError, branchExists, git } from '../lib/proc.mjs';
 
@@ -13,20 +13,23 @@ export function packetNew({ cwd, args, flags }) {
   const project = requireInitialized(openProject(cwd));
   const title = args.join(' ').trim();
   if (!title) throw new AodError('usage: aod packet new "<imperative title>" [--owner codex|claude] [--milestone M1]', 2);
-  const index = loadIndex(project);
-  const id = taskId(index.next_id);
   const owner = flags.owner || 'codex';
-  const text = readFileSync(join(TEMPLATES, 'agents', 'tasks', 'template.md'), 'utf8')
-    .replace('{id}', id)
-    .replace('{title}', title.replace(/:/g, ' -'))
-    .replace(/^owner: codex$/m, `owner: ${owner}`)
-    .replace(/^milestone: M0$/m, `milestone: ${flags.milestone || 'M0'}`);
-  const path = project.packetPath(id);
-  if (existsSync(path)) throw new AodError(`${path} already exists`);
-  writeFileSync(path, text);
-  index.tasks.push(newTaskRecord(id, title, { owner, milestone: flags.milestone || 'M0' }));
-  index.next_id += 1;
-  saveIndex(project, index);
+  const id = withIndexLock(project, () => {
+    const index = loadIndex(project);
+    const next = taskId(index.next_id);
+    const text = readFileSync(join(TEMPLATES, 'agents', 'tasks', 'template.md'), 'utf8')
+      .replace('{id}', next)
+      .replace('{title}', title.replace(/:/g, ' -'))
+      .replace(/^owner: codex$/m, `owner: ${owner}`)
+      .replace(/^milestone: M0$/m, `milestone: ${flags.milestone || 'M0'}`);
+    const path = project.packetPath(next);
+    if (existsSync(path)) throw new AodError(`${path} already exists`);
+    writeFileSync(path, text);
+    index.tasks.push(newTaskRecord(next, title, { owner, milestone: flags.milestone || 'M0' }));
+    index.next_id += 1;
+    saveIndex(project, index);
+    return next;
+  });
   return { id, packet: project.packetRel(id), next: 'Fill in scope, acceptance and context, then `aod task commit`' };
 }
 
@@ -155,6 +158,8 @@ export function taskCommit({ cwd, args }) {
       removed.push(p);
     }
   }
+  // The packet's dependencies drive aod delegate and aod wave; mirror them into the ledger.
+  updateTask(project, id, { depends_on: packet.depends_on || [] });
   return { id, branch, committed: paths, moved_off_base: removed, next: `Run /aod:preflight, then \`aod task set ${id} status=ready\`` };
 }
 

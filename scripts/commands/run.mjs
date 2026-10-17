@@ -5,6 +5,8 @@ import { basename, join } from 'node:path';
 import { execArgs, foldEvent, locateCodex, needsShell, resumeArgs } from '../lib/codex.mjs';
 import { matchesAny, normalizePath } from '../lib/glob.mjs';
 import { integrityChecks } from '../lib/integrity.mjs';
+import { mutationGate } from '../lib/mutation.mjs';
+import { QUOTA_RE, pickModel } from '../lib/routing.mjs';
 import {
   TEMPLATES, assertTaskId, codexBranch, getTask, loadIndex, openProject, readJson, readPacket, requireInitialized,
   schema, taskBranch, updateTask, writeJson,
@@ -13,7 +15,19 @@ import { validate } from '../lib/schema.mjs';
 import { AodError, branchExists, git, isClean, now, sh } from '../lib/proc.mjs';
 import { pickSlot, resetSlot, runningJobs } from './setup.mjs';
 
-export const EXIT = { OK: 0, FAIL: 1, USAGE: 2, BLOCKED: 3, ESCALATE: 4 };
+export const EXIT = { OK: 0, FAIL: 1, USAGE: 2, BLOCKED: 3, ESCALATE: 4, UNAVAILABLE: 5 };
+
+const STOP_AND_ASK = 'Stop and ask the user (ADR-0006: no automatic fallback). Use /aod:decision: wait for the quota '
+  + 'window, switch preset with aod route preset economy, or another option the user prefers.';
+
+// Codex must be present before anything changes (ADR-0006: unavailable means stop and ask).
+export function requireCodex(project) {
+  const cmd = locateCodex(project.config);
+  if (!cmd) {
+    throw new AodError(`Codex CLI not found (install: npm i -g @openai/codex, then codex login; or set codex.command). ${STOP_AND_ASK}`, EXIT.UNAVAILABLE);
+  }
+  return cmd;
+}
 
 const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? vars[k] : m));
 const bullets = (xs) => (xs && xs.length ? xs.map((x) => `- ${x}`).join('\n') : '- none');
@@ -40,12 +54,7 @@ export function buildBrief(project, packet) {
 }
 
 // Spawn codex, stream JSONL, enforce budget and idle timeouts. Resolves with the job state.
-function runCodex(project, { id, slot, args, cwd, brief, budgetMinutes, kind }) {
-  const cmd = locateCodex(project.config);
-  if (!cmd) {
-    throw new AodError('Codex CLI not found. Install it (npm i -g @openai/codex) and run `codex login`, '
-      + 'or set codex.command in .agents/aod.config.json.');
-  }
+function runCodex(project, { cmd, id, slot, args, cwd, brief, budgetMinutes, kind }) {
   const dir = project.jobDir(id);
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, kind === 'revise' ? 'revision.md' : 'brief.md'), brief);
@@ -86,9 +95,11 @@ function runCodex(project, { id, slot, args, cwd, brief, budgetMinutes, kind }) 
       for (const line of lines) foldEvent(state, line);
       writeJson(join(dir, 'state.json'), state);
     });
+    let errText = '';
     child.stderr.on('data', (chunk) => {
       lastActivity = Date.now();
       stderr.write(chunk);
+      errText = (errText + chunk.toString()).slice(-20_000);
     });
     child.on('error', (e) => {
       state.error = e.message;
@@ -101,6 +112,8 @@ function runCodex(project, { id, slot, args, cwd, brief, budgetMinutes, kind }) 
       stderr.end();
       Object.assign(state, { status: 'finished', exit_code: code, ended: now() });
       if (killedFor) state.error = `killed: ${killedFor}`;
+      // Only stderr and Codex error events count: the agent's own messages may mention quotas legitimately.
+      if (code !== 0 && (QUOTA_RE.test(errText) || QUOTA_RE.test(state.error || ''))) state.unavailable = 'quota';
       writeJson(join(dir, 'state.json'), state);
       resolve(state);
     });
@@ -155,10 +168,12 @@ function finishJob(project, id, state, commitMessage) {
     status = 'failed';
     exit = EXIT.FAIL;
   }
+  const event = status === 'failed' ? { type: 'job-failed', detail: state.error || `exit ${state.exit_code}` }
+    : status === 'blocked' ? { type: 'blocked', detail: (report.open_questions || []).join(' | ') } : null;
   const task = updateTask(project, id, (t) => ({
     status, thread_id: state.thread_id || t.thread_id, usage: addUsage(t.usage, state.usage),
     failures: (t.failures || 0) + (status === 'failed' ? 1 : 0),
-  }));
+  }), event);
   return {
     exit,
     result: {
@@ -177,37 +192,51 @@ export async function delegate({ cwd, args, flags }) {
   const id = assertTaskId(args[0]);
   const index = loadIndex(project);
   const task = getTask(index, id);
+  const cmd = requireCodex(project);
   if (task.status !== 'ready' && !flags.force) {
     throw new AodError(`${id} is "${task.status}", not "ready"; run /aod:preflight first (or pass --force)`);
-  }
-  for (const dep of task.depends_on || []) {
-    if (getTask(index, dep).status !== 'done') throw new AodError(`${id} depends on ${dep}, which is not done`);
   }
   if (!branchExists(project.root, taskBranch(id))) throw new AodError(`${taskBranch(id)} does not exist; run aod task commit ${id}`);
   if (branchExists(project.root, codexBranch(id))) throw new AodError(`${codexBranch(id)} already exists; use aod revise or aod reject`);
   const { data: packet } = readPacket(project, id);
+  for (const dep of new Set([...(task.depends_on || []), ...(packet.depends_on || [])])) {
+    if (getTask(index, dep).status !== 'done') throw new AodError(`${id} depends on ${dep}, which is not done`);
+  }
   const slot = pickSlot(project, flags.slot);
   git(['switch', '-c', codexBranch(id), taskBranch(id)], slot.path);
 
-  const model = flags.model || packet.model || project.config.codex.model || null;
-  const effort = flags.effort || packet.effort || project.config.codex.effort || null;
-  updateTask(project, id, { status: 'in_progress', slot: slot.name, model, effort, started: now() });
+  const { role, model, effort } = pickModel(project.config, task, packet, flags, { kind: 'delegate' });
+  updateTask(project, id, {
+    status: 'in_progress', slot: slot.name, model, effort, started: now(), ...(flags.wave ? { wave: Number(flags.wave) } : {}),
+  }, { type: 'delegated', detail: `${slot.name} ${role} ${model || 'default'}` });
 
   const state = await runCodex(project, {
-    id, slot: slot.name, cwd: slot.path, kind: 'delegate', budgetMinutes: packet.budget_minutes,
+    cmd, id, slot: slot.name, cwd: slot.path, kind: 'delegate', budgetMinutes: packet.budget_minutes,
     brief: buildBrief(project, packet),
     args: execArgs({
       slot: slot.path, model, effort, sandbox: project.config.codex.sandbox,
       schemaPath: join(TEMPLATES, 'schemas', 'report.schema.json'), outPath: join(project.jobDir(id), 'report.json'),
     }),
   });
-  return finishJob(project, id, state, `${id}: ${packet.title}`);
+  if (state.unavailable) {
+    // Nothing was done: put the task and slot back as they were, without counting a failure.
+    resetSlot(project, slot.name, { force: true });
+    git(['branch', '-D', codexBranch(id)], project.root, { allowFail: true });
+    updateTask(project, id, { status: 'ready', slot: null, started: null, usage: addUsage(task.usage, state.usage) },
+      { type: 'unavailable', detail: state.unavailable });
+    return { exit: EXIT.UNAVAILABLE, result: { id, status: 'ready', unavailable: state.unavailable, role, model, next: STOP_AND_ASK } };
+  }
+  const out = finishJob(project, id, state, `${id}: ${packet.title}`);
+  out.result.role = role;
+  out.result.model = model;
+  return out;
 }
 
 export async function revise({ cwd, args, flags }) {
   const project = requireInitialized(openProject(cwd));
   const id = assertTaskId(args[0]);
   const task = getTask(loadIndex(project), id);
+  const cmd = requireCodex(project);
   if (!task.thread_id || !task.slot) throw new AodError(`${id} has no Codex thread to resume; delegate it first`);
   if (runningJobs(project).some((j) => j.task_id === id)) throw new AodError(`${id} already has a running job`);
   const findings = flags.findings ? readFileSync(flags.findings, 'utf8').trim() : null;
@@ -215,7 +244,8 @@ export async function revise({ cwd, args, flags }) {
   const round = task.rounds + 1;
   const verdict = flags.answer ? [] : ['REVISE'];
   if (round > project.config.max_rounds && !flags.answer) {
-    updateTask(project, id, { status: 'escalated', verdicts: [...(task.verdicts || []), 'REVISE'] });
+    updateTask(project, id, { status: 'escalated', verdicts: [...(task.verdicts || []), 'REVISE'] },
+      { type: 'escalated', detail: `round limit ${project.config.max_rounds}` });
     return { exit: EXIT.ESCALATE, result: { id, status: 'escalated', reason: `round limit ${project.config.max_rounds} reached`, next: 'escalate to the PO: task, disagreement, options, recommendation' } };
   }
   const { data: packet } = readPacket(project, id);
@@ -223,18 +253,28 @@ export async function revise({ cwd, args, flags }) {
     ? `<answer task="${id}">\n${findings}\n</answer>\nContinue task ${id}. All rules of the original brief still apply. `
       + `Answer only with the JSON report (task_id "${id}").`
     : fill(readFileSync(join(TEMPLATES, 'revision.md'), 'utf8'), { id, round: String(round), findings });
+  const { role, model, effort } = pickModel(project.config, task, packet, flags, { kind: 'revise', round: flags.answer ? task.rounds : round });
   updateTask(project, id, {
-    status: 'in_progress', rounds: flags.answer ? task.rounds : round, verdicts: [...(task.verdicts || []), ...verdict],
-  });
+    status: 'in_progress', rounds: flags.answer ? task.rounds : round, verdicts: [...(task.verdicts || []), ...verdict], model, effort,
+  }, flags.answer ? { type: 'answered' } : { type: 'revise', detail: `round ${round} ${role}` });
   const slotPath = project.slotPath(task.slot);
   const state = await runCodex(project, {
-    id, slot: task.slot, cwd: slotPath, kind: 'revise', budgetMinutes: packet.budget_minutes, brief,
+    cmd, id, slot: task.slot, cwd: slotPath, kind: 'revise', budgetMinutes: packet.budget_minutes, brief,
     args: resumeArgs({
-      threadId: task.thread_id, model: task.model, effort: task.effort,
+      threadId: task.thread_id, model, effort,
       schemaPath: join(TEMPLATES, 'schemas', 'report.schema.json'), outPath: join(project.jobDir(id), 'report.json'),
     }),
   });
-  return finishJob(project, id, state, flags.answer ? `${id}: continue after answer` : `${id}: address review round ${round}`);
+  if (state.unavailable) {
+    // Undo the round bookkeeping; the same revise can be sent again once Codex is available.
+    updateTask(project, id, { status: task.status, rounds: task.rounds, verdicts: task.verdicts, usage: addUsage(task.usage, state.usage) },
+      { type: 'unavailable', detail: state.unavailable });
+    return { exit: EXIT.UNAVAILABLE, result: { id, status: task.status, unavailable: state.unavailable, role, model, next: STOP_AND_ASK } };
+  }
+  const out = finishJob(project, id, state, flags.answer ? `${id}: continue after answer` : `${id}: address review round ${round}`);
+  out.result.role = role;
+  out.result.model = model;
+  return out;
 }
 
 // ---- gates ----
@@ -261,7 +301,7 @@ function acceptanceSources(project, id) {
   return files.map((f) => git(['show', `${taskBranch(id)}:${f}`], project.root, { allowFail: true }).out || '');
 }
 
-export function gates({ cwd, args }) {
+export function gates({ cwd, args, flags = {} }) {
   const project = requireInitialized(openProject(cwd));
   const id = assertTaskId(args[0]);
   const task = getTask(loadIndex(project), id);
@@ -298,7 +338,17 @@ export function gates({ cwd, args }) {
   const acceptance = packet.acceptance.map((cmd) => sh(cmd, slotPath));
   for (const a of acceptance) check(`acceptance: ${a.cmd}`, a.exit_code === 0, a.exit_code === 0 ? 'exit 0' : `exit ${a.exit_code}\n${a.tail}`);
 
+  // Mutation testing is slow, so it runs last and only once everything else is green (ADR-0007).
+  const mutation = project.config.mutation || {};
+  if (mutation.command && !flags['no-mutation'] && results.every((r) => r.ok || r.level === 'warn')) {
+    results.push(mutationGate(mutation, files, slotPath, project.config.test_globs || []));
+  }
+
   const ok = results.every((r) => r.ok || r.level === 'warn');
+  if (!ok) {
+    const failed = results.filter((r) => !r.ok && r.level !== 'warn').map((r) => r.name);
+    updateTask(project, id, {}, { type: violations.length ? 'scope-violation' : 'gates-fail', detail: failed.join(', ') });
+  }
   const warnings = results.filter((r) => r.level === 'warn').map((r) => `${r.name}: ${r.detail}`);
   const head = git(['rev-parse', codexBranch(id)], slotPath);
   writeJson(join(project.jobDir(id), 'gates.json'), { task_id: id, head, ok, at: now(), results });
@@ -350,7 +400,7 @@ export function merge({ cwd, args, flags }) {
   updateTask(project, id, (t) => ({
     status: 'done', finished: now(), verdicts: [...(t.verdicts || []), 'ACCEPT'],
     ...(flags.attention ? { attention_minutes: Number(flags.attention) } : {}),
-  }));
+  }), { type: 'accepted', detail: flags['reviewed-by'] ? `reviewed by ${flags['reviewed-by']}` : undefined });
   git(['add', '--', reportRel, '.agents/tasks/index.json', '.agents/tasks/index.md', ...journal], root);
   const trailers = [`Implemented-by: codex${task.model ? ` (${task.model})` : ''}`];
   if (flags['reviewed-by']) trailers.push(`Reviewed-by: ${flags['reviewed-by']}`);
@@ -372,6 +422,6 @@ export function reject({ cwd, args, flags }) {
   if (branchExists(project.root, codexBranch(id))) git(['branch', '-D', codexBranch(id)], project.root);
   updateTask(project, id, (t) => ({
     status: flags.cancel ? 'cancelled' : 'ready', slot: null, thread_id: null, verdicts: [...(t.verdicts || []), 'REJECT'],
-  }));
+  }), { type: 'rejected', detail: flags.cancel ? 'cancelled' : undefined });
   return { exit: EXIT.OK, result: { id, status: flags.cancel ? 'cancelled' : 'ready', next: 'rewrite the packet or split the task, then delegate again' } };
 }

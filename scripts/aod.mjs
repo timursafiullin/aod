@@ -11,6 +11,9 @@ import { delegate, gates, merge, reject, revise } from './commands/run.mjs';
 import { lock, scopeCheck, unlock } from './commands/guard.mjs';
 import { adrAccept, adrNew, adrSupersede, journalCheck, journalNew, sessionEnd, sessionStart, specCheck, specNew } from './commands/memory.mjs';
 import { preflight } from './commands/preflight.mjs';
+import { explore, review, routePreset, routeShow } from './commands/codex.mjs';
+import { wavePlan, waveRun } from './commands/wave.mjs';
+import { retro } from './commands/retro.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -48,16 +51,25 @@ Delegation loop
   preflight T-xxxx [--no-run]          Packet, branch, deps, contracts/ADRs, spec, overlap, brief size; acceptance red for the right reason
   delegate T-xxxx [--slot codex-1] [--model M] [--effort E] [--force]
   revise T-xxxx --findings <file> [--answer]   Resume the Codex thread with review findings (or an answer)
-  gates T-xxxx                         Scope, skip markers, report schema, acceptance re-run
+  gates T-xxxx [--no-mutation]         Scope, integrity, report schema, acceptance re-run, mutation score
   merge T-xxxx [--reviewed-by X] [--attention N] [--journal .agents/journal/F.md] [--prune]
   reject T-xxxx [--cancel]
+  wave plan [--max N]                  Ready tasks with done deps and disjoint scopes, one per free slot
+  wave run [--max N]                   Delegate that wave in parallel and wait for every job
+  retro [--milestone M] [--since YYYY-MM-DD] [--write]   Loop metrics (methodology §18) from the ledger
+
+Codex routing and cross-family tools
+  route show | route preset <max|balanced|economy>   Models per role (implement, escalate, explore)
+  review [--base B | --commit SHA | --uncommitted] [--focus "..."]   Codex reviews changes Claude made itself
+  explore "<question>" [--lines 30]    Read-only Codex research; answer cites path:line
 
 Guardrails
   unlock --reason "<why>" [--minutes 30]   Allow edits to contracts/acceptance tests/accepted ADRs for a while
   lock                                 End the unlock early
   scope check                          (slot pre-commit hook) staged files must be inside the packet scope
 
-Exit codes: 0 ok, 1 failed, 2 usage, 3 blocked (implementer asked a question), 4 escalate to PO.`;
+Exit codes: 0 ok, 1 failed, 2 usage, 3 blocked (implementer asked a question), 4 escalate to PO,
+5 Codex unavailable or out of quota (stop and ask the user).`;
 
 export function parseArgs(argv) {
   const args = [];
@@ -106,6 +118,13 @@ const COMMANDS = {
   'journal check': journalCheck,
   'session start': sessionStart,
   'session end': sessionEnd,
+  'route show': routeShow,
+  'route preset': routePreset,
+  review,
+  explore,
+  'wave plan': wavePlan,
+  'wave run': waveRun,
+  retro,
 };
 
 function resolveCommand(args) {

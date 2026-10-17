@@ -15,7 +15,6 @@ acceptance:
   - <command that runs this task's acceptance tests, e.g. node --test tests/acceptance/<file>>
 deliverables: [code, unit tests]
 budget_minutes: 30
-effort: medium
 ---
 
 ## Context

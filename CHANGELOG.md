@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.6.0 — M5 parallelism and metrics
+
+- `aod wave plan|run` and `/aod:wave`: independent ready tasks (dependencies done, disjoint scopes) are delegated
+  in parallel, one per free slot. Exit 5 if Codex is unavailable for any of them.
+- Ledger: lock for concurrent writers, `events` history and `wave` per task. `aod task commit` mirrors the
+  packet's `depends_on`, and `aod delegate` enforces packet dependencies.
+- `aod retro` and `/aod:retro`: methodology §18 metrics, attention minutes, tokens and pool %
+  (`retro.weekly_token_pool`), a per-model table and signals, written to `.agents/plans/retro-*.md`.
+- Mutation adapter in `aod gates` (`mutation.command` with `{files}`, threshold, warn/fail). It parses Stryker,
+  Infection, PIT, cargo-mutants, mutmut-style counts and Mull, or a custom `score_regex`. `--no-mutation`
+  skips it.
+- ADR-0007.
+
+## 0.5.0 — M4 cross-family and routing
+
+- Routing presets `max` (default), `balanced`, `economy`; `aod route show|preset`; escalation after a failed job or
+  from review round 2. Breaking: `codex.model`/`codex.effort` are no longer read; use `routing`.
+- Codex unavailable or out of quota: exit 5, task back to `ready`, no failure counted; stop and ask (ADR-0006).
+- `aod review` (Codex reviews Claude-written changes) and `aod explore` (read-only Codex research);
+  skills `/aod:cross-review`, `/aod:explore`.
+- `aod init` scaffolds `.agents/skills/aod-implementer`, which Codex loads in every slot.
+
 ## 0.4.1 — M3.1 dry-run fixes
 
 - `aod task commit` refuses while the referenced spec/ADRs are uncommitted on the base branch; new `aod task sync`.
