@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.6.0 — M5 parallelism and metrics
+
+- `aod wave plan|run` and `/aod:wave`: independent ready tasks (dependencies done, disjoint scopes) are delegated
+  in parallel, one per free slot. Exit 5 if Codex is unavailable for any of them.
+- Ledger: lock for concurrent writers, `events` history and `wave` per task. `aod task commit` mirrors the
+  packet's `depends_on`, and `aod delegate` enforces packet dependencies.
+- `aod retro` and `/aod:retro`: methodology §18 metrics, attention minutes, tokens and pool %
+  (`retro.weekly_token_pool`), a per-model table and signals, written to `.agents/plans/retro-*.md`.
+- Mutation adapter in `aod gates` (`mutation.command` with `{files}`, threshold, warn/fail). It parses Stryker,
+  Infection, PIT, cargo-mutants, mutmut-style counts and Mull, or a custom `score_regex`. `--no-mutation`
+  skips it.
+- ADR-0007.
+
 ## 0.5.0 — M4 cross-family and routing
 
 - Routing presets `max` (default), `balanced`, `economy`; `aod route show|preset`; escalation after a failed job or

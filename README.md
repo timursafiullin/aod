@@ -45,7 +45,15 @@ Cross-family tools and routing:
 | --- | --- |
 | `/aod:cross-review` (`aod review`) | Codex reviews code Claude wrote itself (`codex exec review`) |
 | `/aod:explore` (`aod explore`) | Read-only Codex research answering with `path:line` citations, instead of filling Claude's context |
-| `aod route show` / `aod route preset max|balanced|economy` | Models per role: implement, escalate (after a failure or from review round 2), explore |
+| `aod route show` / `aod route preset max\|balanced\|economy` | Models per role: implement, escalate (after a failure or from review round 2), explore |
+
+Throughput and feedback:
+
+| Skill / command | What happens |
+| --- | --- |
+| `/aod:wave` (`aod wave plan\|run`) | Independent ready tasks (dependencies done, disjoint scopes) run in parallel, one per slot |
+| `/aod:retro` (`aod retro`) | Loop metrics from the ledger: first-pass acceptance, rounds, blocked/escalation rates, scope violations, attention minutes, tokens |
+| `mutation` in `aod.config.json` | Optional mutation-testing gate (Stryker, PIT, cargo-mutants, mutmut, Mull, ...) on the changed files |
 
 When Codex is unavailable or out of quota, AOD stops with exit code 5 and asks you; it never falls back silently.
 

@@ -56,5 +56,16 @@
   "session": {
     "baseline": []
   },
-  "max_rounds": 3
+  "max_rounds": 3,
+  "mutation": {
+    "command": null,
+    "include": [],
+    "threshold": 60,
+    "level": "warn",
+    "timeout_minutes": 20,
+    "score_regex": null
+  },
+  "retro": {
+    "weekly_token_pool": null
+  }
 }

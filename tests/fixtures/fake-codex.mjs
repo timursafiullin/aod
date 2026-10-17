@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 // Stand-in for `codex exec` in tests. Behaviour is chosen by FAKE_CODEX_SCENARIO:
 //   good | out-of-scope | skip | blocked | quota | crash. On `exec resume` it repairs out-of-scope/skip damage.
+// FAKE_CODEX_PER_TASK=1 writes src/<t-xxxx>.mjs instead of src/add.mjs (parallel waves need disjoint files);
+// FAKE_CODEX_DELAY_MS makes the job take that long, so tests can see jobs overlap.
 // FAKE_CODEX_ARGS_LOG, when set, receives one JSON line with the argv of every call.
 // Like real Codex under workspace-write it never commits (.git is read-only); AOD commits for it.
 import { spawnSync } from 'node:child_process';
@@ -40,7 +42,9 @@ const out = opt('-o');
 const brief = readFileSync(0, 'utf8');
 const id = /T-\d{4}/.exec(brief)?.[0] || 'T-0000';
 const scenario = process.env.FAKE_CODEX_SCENARIO || 'good';
-const threadId = resume ? argv[2] : '00000000-0000-4000-8000-000000000001';
+const threadId = resume ? argv[2] : `00000000-0000-4000-8000-00000000${id.slice(2)}`;
+const srcFile = process.env.FAKE_CODEX_PER_TASK ? `src/${id.toLowerCase()}.mjs` : 'src/add.mjs';
+if (process.env.FAKE_CODEX_DELAY_MS) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, Number(process.env.FAKE_CODEX_DELAY_MS));
 
 const git = (...args) => {
   const r = spawnSync('git', args, { cwd: dir, encoding: 'utf8' });
@@ -70,7 +74,7 @@ if (scenario === 'blocked' && !resume) {
   status = 'blocked';
   questions.push('Should add() accept strings?');
 } else if (!resume) {
-  write('src/add.mjs', 'export const add = (a, b) => a + b;\n');
+  write(srcFile, 'export const add = (a, b) => a + b;\n');
   if (scenario === 'out-of-scope') write('README.md', 'changed by implementer\n');
   if (scenario === 'skip') write('src/add.test.mjs', "import { test } from 'node:test';\ntest.skip('later', () => {});\n");
 } else {
@@ -84,7 +88,7 @@ const report = {
   status,
   summary: status === 'done' ? 'Implemented add.' : 'Need a decision.',
   commits: [],
-  files_changed: status === 'done' ? ['src/add.mjs'] : [],
+  files_changed: status === 'done' ? [srcFile] : [],
   checks: [],
   deviations: [],
   open_questions: questions,

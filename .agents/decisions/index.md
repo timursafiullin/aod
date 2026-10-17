@@ -8,3 +8,4 @@
 | [ADR-0004](ADR-0004-memory-and-session-tooling.md) | Memory and session tooling: EARS specs, ADR lifecycle, journal, deterministic preflight | Accepted | 2026-10-17 |
 | [ADR-0005](ADR-0005-task-branch-sync-shell-write-guard-ledger-rule.md) | Task branches carry committed specs/ADRs, shell writes are guarded, one ledger rule | Accepted | 2026-10-17 |
 | [ADR-0006](ADR-0006-routing-and-codex-unavailability.md) | Model routing presets (default "max"), stop-and-ask when Codex is unavailable, cross-family tools | Accepted | 2026-10-17 |
+| [ADR-0007](ADR-0007-waves-retro-mutation.md) | Parallel waves, ledger history and lock, retro metrics, mutation-testing adapter | Accepted | 2026-10-17 |

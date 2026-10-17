@@ -155,6 +155,49 @@
             "type": "integer",
             "minimum": 0,
             "description": "Failed Codex jobs (exit != 0, crash or report status failed)."
+          },
+          "events": {
+            "type": "array",
+            "description": "Loop history for aod retro.",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "at",
+                "type"
+              ],
+              "properties": {
+                "at": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "delegated",
+                    "job-failed",
+                    "blocked",
+                    "answered",
+                    "revise",
+                    "escalated",
+                    "gates-fail",
+                    "scope-violation",
+                    "accepted",
+                    "rejected",
+                    "unavailable"
+                  ]
+                },
+                "detail": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "wave": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Wave number when delegated by aod wave run."
           }
         }
       }

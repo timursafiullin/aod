@@ -5,6 +5,7 @@ import { basename, join } from 'node:path';
 import { execArgs, foldEvent, locateCodex, needsShell, resumeArgs } from '../lib/codex.mjs';
 import { matchesAny, normalizePath } from '../lib/glob.mjs';
 import { integrityChecks } from '../lib/integrity.mjs';
+import { mutationGate } from '../lib/mutation.mjs';
 import { QUOTA_RE, pickModel } from '../lib/routing.mjs';
 import {
   TEMPLATES, assertTaskId, codexBranch, getTask, loadIndex, openProject, readJson, readPacket, requireInitialized,
@@ -167,10 +168,12 @@ function finishJob(project, id, state, commitMessage) {
     status = 'failed';
     exit = EXIT.FAIL;
   }
+  const event = status === 'failed' ? { type: 'job-failed', detail: state.error || `exit ${state.exit_code}` }
+    : status === 'blocked' ? { type: 'blocked', detail: (report.open_questions || []).join(' | ') } : null;
   const task = updateTask(project, id, (t) => ({
     status, thread_id: state.thread_id || t.thread_id, usage: addUsage(t.usage, state.usage),
     failures: (t.failures || 0) + (status === 'failed' ? 1 : 0),
-  }));
+  }), event);
   return {
     exit,
     result: {
@@ -193,17 +196,19 @@ export async function delegate({ cwd, args, flags }) {
   if (task.status !== 'ready' && !flags.force) {
     throw new AodError(`${id} is "${task.status}", not "ready"; run /aod:preflight first (or pass --force)`);
   }
-  for (const dep of task.depends_on || []) {
-    if (getTask(index, dep).status !== 'done') throw new AodError(`${id} depends on ${dep}, which is not done`);
-  }
   if (!branchExists(project.root, taskBranch(id))) throw new AodError(`${taskBranch(id)} does not exist; run aod task commit ${id}`);
   if (branchExists(project.root, codexBranch(id))) throw new AodError(`${codexBranch(id)} already exists; use aod revise or aod reject`);
   const { data: packet } = readPacket(project, id);
+  for (const dep of new Set([...(task.depends_on || []), ...(packet.depends_on || [])])) {
+    if (getTask(index, dep).status !== 'done') throw new AodError(`${id} depends on ${dep}, which is not done`);
+  }
   const slot = pickSlot(project, flags.slot);
   git(['switch', '-c', codexBranch(id), taskBranch(id)], slot.path);
 
   const { role, model, effort } = pickModel(project.config, task, packet, flags, { kind: 'delegate' });
-  updateTask(project, id, { status: 'in_progress', slot: slot.name, model, effort, started: now() });
+  updateTask(project, id, {
+    status: 'in_progress', slot: slot.name, model, effort, started: now(), ...(flags.wave ? { wave: Number(flags.wave) } : {}),
+  }, { type: 'delegated', detail: `${slot.name} ${role} ${model || 'default'}` });
 
   const state = await runCodex(project, {
     cmd, id, slot: slot.name, cwd: slot.path, kind: 'delegate', budgetMinutes: packet.budget_minutes,
@@ -217,7 +222,8 @@ export async function delegate({ cwd, args, flags }) {
     // Nothing was done: put the task and slot back as they were, without counting a failure.
     resetSlot(project, slot.name, { force: true });
     git(['branch', '-D', codexBranch(id)], project.root, { allowFail: true });
-    updateTask(project, id, { status: 'ready', slot: null, started: null, usage: addUsage(task.usage, state.usage) });
+    updateTask(project, id, { status: 'ready', slot: null, started: null, usage: addUsage(task.usage, state.usage) },
+      { type: 'unavailable', detail: state.unavailable });
     return { exit: EXIT.UNAVAILABLE, result: { id, status: 'ready', unavailable: state.unavailable, role, model, next: STOP_AND_ASK } };
   }
   const out = finishJob(project, id, state, `${id}: ${packet.title}`);
@@ -238,7 +244,8 @@ export async function revise({ cwd, args, flags }) {
   const round = task.rounds + 1;
   const verdict = flags.answer ? [] : ['REVISE'];
   if (round > project.config.max_rounds && !flags.answer) {
-    updateTask(project, id, { status: 'escalated', verdicts: [...(task.verdicts || []), 'REVISE'] });
+    updateTask(project, id, { status: 'escalated', verdicts: [...(task.verdicts || []), 'REVISE'] },
+      { type: 'escalated', detail: `round limit ${project.config.max_rounds}` });
     return { exit: EXIT.ESCALATE, result: { id, status: 'escalated', reason: `round limit ${project.config.max_rounds} reached`, next: 'escalate to the PO: task, disagreement, options, recommendation' } };
   }
   const { data: packet } = readPacket(project, id);
@@ -249,7 +256,7 @@ export async function revise({ cwd, args, flags }) {
   const { role, model, effort } = pickModel(project.config, task, packet, flags, { kind: 'revise', round: flags.answer ? task.rounds : round });
   updateTask(project, id, {
     status: 'in_progress', rounds: flags.answer ? task.rounds : round, verdicts: [...(task.verdicts || []), ...verdict], model, effort,
-  });
+  }, flags.answer ? { type: 'answered' } : { type: 'revise', detail: `round ${round} ${role}` });
   const slotPath = project.slotPath(task.slot);
   const state = await runCodex(project, {
     cmd, id, slot: task.slot, cwd: slotPath, kind: 'revise', budgetMinutes: packet.budget_minutes, brief,
@@ -260,7 +267,8 @@ export async function revise({ cwd, args, flags }) {
   });
   if (state.unavailable) {
     // Undo the round bookkeeping; the same revise can be sent again once Codex is available.
-    updateTask(project, id, { status: task.status, rounds: task.rounds, verdicts: task.verdicts, usage: addUsage(task.usage, state.usage) });
+    updateTask(project, id, { status: task.status, rounds: task.rounds, verdicts: task.verdicts, usage: addUsage(task.usage, state.usage) },
+      { type: 'unavailable', detail: state.unavailable });
     return { exit: EXIT.UNAVAILABLE, result: { id, status: task.status, unavailable: state.unavailable, role, model, next: STOP_AND_ASK } };
   }
   const out = finishJob(project, id, state, flags.answer ? `${id}: continue after answer` : `${id}: address review round ${round}`);
@@ -293,7 +301,7 @@ function acceptanceSources(project, id) {
   return files.map((f) => git(['show', `${taskBranch(id)}:${f}`], project.root, { allowFail: true }).out || '');
 }
 
-export function gates({ cwd, args }) {
+export function gates({ cwd, args, flags = {} }) {
   const project = requireInitialized(openProject(cwd));
   const id = assertTaskId(args[0]);
   const task = getTask(loadIndex(project), id);
@@ -330,7 +338,17 @@ export function gates({ cwd, args }) {
   const acceptance = packet.acceptance.map((cmd) => sh(cmd, slotPath));
   for (const a of acceptance) check(`acceptance: ${a.cmd}`, a.exit_code === 0, a.exit_code === 0 ? 'exit 0' : `exit ${a.exit_code}\n${a.tail}`);
 
+  // Mutation testing is slow, so it runs last and only once everything else is green (ADR-0007).
+  const mutation = project.config.mutation || {};
+  if (mutation.command && !flags['no-mutation'] && results.every((r) => r.ok || r.level === 'warn')) {
+    results.push(mutationGate(mutation, files, slotPath, project.config.test_globs || []));
+  }
+
   const ok = results.every((r) => r.ok || r.level === 'warn');
+  if (!ok) {
+    const failed = results.filter((r) => !r.ok && r.level !== 'warn').map((r) => r.name);
+    updateTask(project, id, {}, { type: violations.length ? 'scope-violation' : 'gates-fail', detail: failed.join(', ') });
+  }
   const warnings = results.filter((r) => r.level === 'warn').map((r) => `${r.name}: ${r.detail}`);
   const head = git(['rev-parse', codexBranch(id)], slotPath);
   writeJson(join(project.jobDir(id), 'gates.json'), { task_id: id, head, ok, at: now(), results });
@@ -382,7 +400,7 @@ export function merge({ cwd, args, flags }) {
   updateTask(project, id, (t) => ({
     status: 'done', finished: now(), verdicts: [...(t.verdicts || []), 'ACCEPT'],
     ...(flags.attention ? { attention_minutes: Number(flags.attention) } : {}),
-  }));
+  }), { type: 'accepted', detail: flags['reviewed-by'] ? `reviewed by ${flags['reviewed-by']}` : undefined });
   git(['add', '--', reportRel, '.agents/tasks/index.json', '.agents/tasks/index.md', ...journal], root);
   const trailers = [`Implemented-by: codex${task.model ? ` (${task.model})` : ''}`];
   if (flags['reviewed-by']) trailers.push(`Reviewed-by: ${flags['reviewed-by']}`);
@@ -404,6 +422,6 @@ export function reject({ cwd, args, flags }) {
   if (branchExists(project.root, codexBranch(id))) git(['branch', '-D', codexBranch(id)], project.root);
   updateTask(project, id, (t) => ({
     status: flags.cancel ? 'cancelled' : 'ready', slot: null, thread_id: null, verdicts: [...(t.verdicts || []), 'REJECT'],
-  }));
+  }), { type: 'rejected', detail: flags.cancel ? 'cancelled' : undefined });
   return { exit: EXIT.OK, result: { id, status: flags.cancel ? 'cancelled' : 'ready', next: 'rewrite the packet or split the task, then delegate again' } };
 }
