@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.1 — retro token accounting
+
+- `aod retro` reports uncached tokens (fresh input + output) separately from cached input, with the cache hit
+  rate. Pool % and the per-task figure use uncached tokens. In the first live wave, 59% of the input was a cache
+  hit, so the old total overstated cost about 2.4x.
+
 ## 0.6.0 — M5 parallelism and metrics
 
 - `aod wave plan|run` and `/aod:wave`: independent ready tasks (dependencies done, disjoint scopes) are delegated
