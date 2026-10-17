@@ -82,3 +82,13 @@ test('index.md render escapes pipes and shows next id', () => {
   assert.match(md, /a \\\| b/);
   assert.match(md, /Next id: T-0003/);
 });
+
+test('relativeInside compares paths as strings, case-insensitively for drive paths', async () => {
+  const { relativeInside } = await import('../scripts/lib/paths.mjs');
+  const opts = { real: false };
+  assert.equal(relativeInside(String.raw`C:\w\slot`, 'c:/W/slot/src/a.mjs', opts), 'src/a.mjs');
+  assert.equal(relativeInside(String.raw`C:\w\slot`, String.raw`C:\w\slot-2\a.mjs`, opts), null);
+  assert.equal(relativeInside('/repo', '/repo', opts), '');
+  assert.equal(relativeInside('/repo', '/repo/x/y', opts), 'x/y');
+  assert.equal(relativeInside('/repo', '/other', opts), null);
+});

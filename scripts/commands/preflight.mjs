@@ -1,7 +1,8 @@
 // aod preflight T-xxxx: deterministic pre-flight (methodology §9.2 phase 0, §21.4) before delegation.
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { isAbsolute, join, relative } from 'node:path';
+import { isAbsolute, join } from 'node:path';
+import { relativeInside } from '../lib/paths.mjs';
 import { lintSpec } from '../lib/ears.mjs';
 import { matchesAny, normalizePath } from '../lib/glob.mjs';
 import { parseFrontmatter } from '../lib/frontmatter.mjs';
@@ -25,7 +26,12 @@ export function classifyFailure(output, scope, checkoutDir) {
   const missing = /Cannot find module '([^']+)'/.exec(text) || /ERR_MODULE_NOT_FOUND[^\n]*?'([^']+)'/.exec(text);
   if (missing) {
     let p = missing[1];
-    if (isAbsolute(p) || /^[A-Za-z]:[\\/]/.test(p)) p = relative(checkoutDir, p);
+    const winLike = /^[A-Za-z]:[\\/]/.test(p);
+    if (isAbsolute(p) || winLike) {
+      // String-based, alias-safe: /var vs /private/var on macOS, short names on Windows.
+      const real = !(winLike && process.platform !== 'win32');
+      p = relativeInside(checkoutDir, p, { real }) ?? p;
+    }
     p = normalizePath(p).replace(/^(\.\.\/)+/, '');
     return matchesAny(p, scope)
       ? { level: 'pass', detail: `fails because ${p} does not exist yet (inside scope: the task creates it)` }

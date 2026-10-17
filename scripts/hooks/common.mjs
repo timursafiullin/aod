@@ -1,8 +1,9 @@
 // Shared plumbing for Claude Code hook handlers. Hooks must stay silent (exit 0) outside AOD projects,
 // because the plugin is usually installed for every project of the user.
 import { readFileSync } from 'node:fs';
-import { isAbsolute, relative, resolve } from 'node:path';
+import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { canonical, relativeInside } from '../lib/paths.mjs';
 import { openProject } from '../lib/project.mjs';
 
 export function readInput() {
@@ -25,23 +26,17 @@ export function aodProject(cwd) {
 
 // Path of `p` relative to the repo root or a slot, with forward slashes; null when outside both.
 export function locate(project, p, cwd) {
-  const abs = resolve(cwd || project.root, p);
-  const rel = (base) => {
-    const r = relative(base, abs);
-    return r && !r.startsWith('..') && !isAbsolute(r) ? r.replace(/\\/g, '/') : null;
-  };
-  const inRoot = rel(project.root);
-  if (inRoot !== null && !inRoot.startsWith('../')) return { where: 'main', path: inRoot };
+  const abs = canonical(resolve(cwd || project.root, p));
   for (const name of project.slotNames()) {
-    const inSlot = rel(project.slotPath(name));
-    if (inSlot !== null) return { where: name, path: inSlot };
+    const inSlot = relativeInside(project.slotPath(name), abs);
+    if (inSlot) return { where: name, path: inSlot };
   }
-  return null;
+  const inRoot = relativeInside(project.root, abs);
+  return inRoot ? { where: 'main', path: inRoot } : null;
 }
 
 export function isInSlots(project, dir) {
-  const r = relative(project.worktrees, resolve(dir));
-  return r === '' || (!r.startsWith('..') && !isAbsolute(r));
+  return relativeInside(project.worktrees, dir) !== null;
 }
 
 export function block(reason) {
