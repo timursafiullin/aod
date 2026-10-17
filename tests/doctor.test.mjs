@@ -12,6 +12,7 @@ const ALL = {
   'git --version': 'git version 2.47.0',
   'git worktree list': '/repo abc [master]',
   'codex --version': 'codex-cli 1.4.0',
+  'codex login status': 'Logged in using ChatGPT',
   'claude --version': '2.1.302 (Claude Code)',
 };
 
@@ -43,4 +44,15 @@ test('old node or missing git fails', () => {
   assert.equal(runDoctor({ run: fakeRun(ALL), nodeVersion: 'v18.0.0', locate }).ok, false);
   const { ['git --version']: _, ...noGit } = ALL;
   assert.equal(runDoctor({ run: fakeRun(noGit), nodeVersion: 'v22.1.0', locate }).ok, false);
+});
+
+test('installed but not logged-in codex warns and is not claude+codex', () => {
+  const { ['codex login status']: _, ...rest } = ALL;
+  const r = runDoctor({ run: fakeRun(rest), nodeVersion: 'v22.1.0', locate });
+  assert.equal(r.ok, true);
+  assert.equal(r.mode, 'claude-only');
+  const text = formatDoctor(r);
+  assert.match(text, /\[warn\] codex-login +not logged in/);
+  assert.match(text, /Run `codex login`/);
+  assert.match(text, /\[ok  \] git +git version 2\.47\.0 \(needs >= 2\.38\)/);
 });

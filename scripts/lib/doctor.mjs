@@ -24,7 +24,7 @@ export const CHECKS = [
     run: ({ nodeVersion }) => {
       const v = parseVersion(nodeVersion);
       const ok = !!v && v.major >= MIN_NODE_MAJOR;
-      return { ok, detail: nodeVersion, hint: ok ? undefined : `Install Node.js >= ${MIN_NODE_MAJOR}` };
+      return { ok, detail: `${nodeVersion} (needs >= ${MIN_NODE_MAJOR})`, hint: ok ? undefined : `Install Node.js >= ${MIN_NODE_MAJOR}` };
     },
   },
   {
@@ -34,7 +34,7 @@ export const CHECKS = [
       const out = run('git', ['--version']);
       const v = parseVersion(out);
       const ok = !!v && (v.major > MIN_GIT[0] || (v.major === MIN_GIT[0] && v.minor >= MIN_GIT[1]));
-      return { ok, detail: out || 'not found', hint: ok ? undefined : `Install git >= ${MIN_GIT.join('.')} and add it to PATH` };
+      return { ok, detail: out ? `${out} (needs >= ${MIN_GIT.join('.')})` : 'not found', hint: ok ? undefined : `Install git >= ${MIN_GIT.join('.')} and add it to PATH` };
     },
   },
   {
@@ -58,7 +58,22 @@ export const CHECKS = [
       return {
         ok: !!out,
         detail: out || 'not found',
-        hint: out ? undefined : 'Optional implementer: npm i -g @openai/codex, then `codex login`. Without it AOD runs in Claude-only mode.',
+        hint: out ? undefined : 'Implementer: npm i -g @openai/codex, then `codex login`. Without it AOD cannot delegate (it stops and asks).',
+      };
+    },
+  },
+  {
+    // A Codex that is installed but not logged in passes --version and only fails at the first delegation.
+    id: 'codex-login',
+    required: false,
+    run: ({ run, locate }) => {
+      const cmd = locate();
+      if (!cmd || !run(cmd[0], [...cmd.slice(1), '--version'])) return { ok: false, detail: 'skipped (no codex)' };
+      const out = run(cmd[0], [...cmd.slice(1), 'login', 'status']);
+      return {
+        ok: !!out,
+        detail: out ? out.split('\n')[0] : 'not logged in',
+        hint: out ? undefined : 'Run `codex login` (ChatGPT plan) or `codex login --with-api-key`.',
       };
     },
   },
@@ -76,7 +91,8 @@ export function runDoctor(ctx = {}) {
   const full = { run: defaultRun, nodeVersion: process.version, locate: () => locateCodex(), ...ctx };
   const results = CHECKS.map((c) => ({ id: c.id, required: c.required, ...c.run(full) }));
   const ok = results.every((r) => r.ok || !r.required);
-  const mode = results.find((r) => r.id === 'codex')?.ok ? 'claude+codex' : 'claude-only';
+  const ready = (id) => results.find((r) => r.id === id)?.ok;
+  const mode = ready('codex') && ready('codex-login') ? 'claude+codex' : 'claude-only';
   return { ok, mode, results };
 }
 

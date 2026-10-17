@@ -139,7 +139,8 @@ function pidAlive(pid) {
 
 export function slotInfo(project, name) {
   const path = project.slotPath(name);
-  if (!existsSync(path)) return { name, path, exists: false, free: false };
+  // A slot that does not exist yet is free: delegate creates it on demand from the base branch.
+  if (!existsSync(path)) return { name, path, exists: false, free: true, note: 'created on first delegation' };
   const branch = git(['branch', '--show-current'], path);
   const clean = isClean(path);
   const job = runningJobs(project).find((j) => j.slot === name);

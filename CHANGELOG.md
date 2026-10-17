@@ -1,5 +1,25 @@
 # Changelog
 
+## 1.0.0-rc.1 — M6 community release candidate
+
+- Methodology updated to AOD 2.0, in English (`docs/aod-methodology-EN.md`) and Russian
+  (`docs/aod-methodology-RU.md`); `docs/aod-methodology.md` is gone.
+- Demo: `node scripts/dev/demo.mjs [--slow] [--keep]` runs the whole loop with a simulated Codex, including a
+  gate catching an out-of-scope edit and a REVISE round.
+- Quick start (`docs/quick-start.md`): install to first delegated and merged task in about 15 minutes.
+- `CONTRIBUTING.md`, `SECURITY.md`, issue forms and a pull request template.
+- Release process (ADR-0008): semver for the user-facing surface, `CHANGELOG.md` as the release notes, and a
+  tag-driven release workflow that checks that the tag, `plugin.json` and the changelog agree.
+- CI also checks version and changelog drift, skill names against their folders, and README links.
+- Fixes from a timed quick-start dry run (first delegation reached in about 2 minutes of agent time):
+  - `aod doctor` checks `codex login status` and shows the minimum Node and git versions;
+  - slots that do not exist yet show as free in `aod status`;
+  - `aod task commit` mirrors the packet's milestone, title and owner into the ledger;
+  - the doctor skill no longer claims a Claude fallback when Codex is missing;
+  - the quick start gains a PowerShell variant and covers permission prompts, init's optional offers, the
+    ledger's state, leftover branches and the cost;
+  - the example repository gets a `.gitattributes` (no CRLF warnings) and an absolute link to the guide.
+
 ## 0.6.1 — retro token accounting
 
 - `aod retro` reports uncached tokens (fresh input + output) separately from cached input, with the cache hit
