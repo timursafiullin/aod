@@ -5,7 +5,7 @@ Date: 2026-10-17
 
 ## Context
 
-AOD 1.0 (`docs/aod-methodology.md`) relies on hand-built plumbing: a Pi MCP bridge, manual polling, prose
+AOD 1.0 (then `docs/aod-methodology.md`; now `docs/aod-methodology-EN.md` and `-RU.md`, updated to 2.0) relies on hand-built plumbing: a Pi MCP bridge, manual polling, prose
 checklists. The AOD 2.0 research (`docs/aod-2.0-research.md`) shows these now map to native primitives:
 skills, hooks, subagents and `codex exec --output-schema`. The project is meant to be open source and usable
 by people who do not care how it works inside: install must be one step and must work on Windows, macOS and Linux.
