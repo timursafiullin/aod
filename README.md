@@ -83,8 +83,8 @@ node scripts/aod.mjs help
 
 ## Documentation
 
-- [Methodology (AOD 2.0, English)](docs/methodology.md)
-- [Methodology (AOD 2.0, Russian)](docs/aod-methodology.md)
+- [Methodology (AOD 2.0, English)](docs/aod-methodology-EN.md)
+- [Methodology (AOD 2.0, Russian)](docs/aod-methodology-RU.md)
 - [AOD 2.0 research and upgrade plan](docs/aod-2.0-research.md)
 - [Architecture decisions](.agents/decisions/index.md)
 

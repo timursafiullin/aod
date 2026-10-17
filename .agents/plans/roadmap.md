@@ -2,9 +2,10 @@
 
 ## Context
 
-`docs/aod-methodology.md` (AOD 1.0, RU) defines Architect-Orchestrated Development: a Product Owner, a strong
-architect model (Claude Code) and cross-family implementers (Codex) working through contracts-first task
-packets, isolated worktree slots, schema-bound reports, a ≤3-round review loop and repo-as-memory (`.agents/`).
+`docs/aod-methodology-EN.md` / `docs/aod-methodology-RU.md` (AOD 1.0, now updated to 2.0) defines
+Architect-Orchestrated Development: a Product Owner, a strong architect model (Claude Code) and cross-family
+implementers (Codex) working through contracts-first task packets, isolated worktree slots, schema-bound
+reports, a ≤3-round review loop and repo-as-memory (`.agents/`).
 `docs/aod-2.0-research.md` concludes the principles hold but the plumbing (Pi bridge, polling, hand-run
 checklists) should become native primitives: **skills** for procedures, **hooks** for red lines,
 **`codex exec --output-schema`** for delegation, fresh-context reviewers, a JSON task ledger, stop-clause +
