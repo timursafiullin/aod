@@ -9,6 +9,8 @@ import { indexRender, init, slot, status } from './commands/setup.mjs';
 import { packetNew, packetRestore, packetShow, packetValidate, taskCommit, taskSet } from './commands/tasks.mjs';
 import { delegate, gates, merge, reject, revise } from './commands/run.mjs';
 import { lock, scopeCheck, unlock } from './commands/guard.mjs';
+import { adrAccept, adrNew, adrSupersede, journalCheck, journalNew, sessionEnd, sessionStart, specCheck, specNew } from './commands/memory.mjs';
+import { preflight } from './commands/preflight.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -33,7 +35,16 @@ Tasks
   task commit T-xxxx [paths...]        Commit packet + acceptance tests to task/T-xxxx, stay on base branch
   task set T-xxxx status=ready [notes=...] [attention_minutes=N]
 
+Memory and sessions
+  session start                        Briefing + baseline checks (session.baseline) before new work
+  session end [--commit]               Journal complete, no jobs/unlock, commit .agents memory changes
+  journal new [--topic slug] [--task T-xxxx] [--new]   Today's entry (reused if it exists)
+  journal check [file]                 Required sections present, Next step filled
+  adr new "<decision>" | adr accept ADR-xxxx | adr supersede ADR-old --by ADR-new
+  spec new "<feature>" | spec check S-xxxx   EARS lint and acceptance tracing
+
 Delegation loop
+  preflight T-xxxx [--no-run]          Packet, branch, deps, contracts/ADRs, spec, overlap, brief size; acceptance red for the right reason
   delegate T-xxxx [--slot codex-1] [--model M] [--effort E] [--force]
   revise T-xxxx --findings <file> [--answer]   Resume the Codex thread with review findings (or an answer)
   gates T-xxxx                         Scope, skip markers, report schema, acceptance re-run
@@ -83,6 +94,16 @@ const COMMANDS = {
   unlock,
   lock,
   'scope check': scopeCheck,
+  preflight,
+  'adr new': adrNew,
+  'adr accept': adrAccept,
+  'adr supersede': adrSupersede,
+  'spec new': specNew,
+  'spec check': specCheck,
+  'journal new': journalNew,
+  'journal check': journalCheck,
+  'session start': sessionStart,
+  'session end': sessionEnd,
 };
 
 function resolveCommand(args) {

@@ -5,21 +5,19 @@ description: Pre-flight check of an AOD task packet before delegation - consiste
 
 # Pre-flight for T-xxxx
 
-Run every check; mark the task ready only if all pass. CLI: `aod` means
-`node "${CLAUDE_PLUGIN_ROOT}/scripts/aod.mjs"`.
+CLI: `aod` means `node "${CLAUDE_PLUGIN_ROOT}/scripts/aod.mjs"`.
 
-1. `aod packet validate T-xxxx` succeeds.
-2. Read the packet with `aod packet show T-xxxx`. Confirm:
-   - every path in `contracts` and `spec` exists on `task/T-xxxx` and every referenced ADR is `Accepted`;
-   - the spec, ADRs, contracts and packet do not contradict each other (names, types, units, error cases);
-   - `scope` covers everything the task needs to touch and nothing more;
-   - all `depends_on` tasks are `done` (`aod status --all`).
-3. Acceptance fails for the right reason. Check out `task/T-xxxx` read-only in a temporary place, e.g.
-   `git worktree add --detach <tmp dir> task/T-xxxx`, run each acceptance command there in bash, then
-   `git worktree remove <tmp dir>`. Each command must fail because the feature is missing. Expected reasons:
-   a failing assertion, or "module not found" for exactly the module the task creates. Wrong reasons: a syntax
-   error in the test, a missing module the task does not create, a bad path in the command, a missing tool.
-4. The brief will be under ~6000 characters: the packet body references files instead of pasting them.
-5. If everything passes: `aod task set T-xxxx status=ready`.
-   Otherwise fix it (`aod packet restore T-xxxx`, edit, `aod task commit T-xxxx ...`; acceptance-test edits need
-   `aod unlock --reason ...` first and `aod lock` after) and report what was wrong.
+1. Run the deterministic checks:
+   `aod preflight T-xxxx`
+   It verifies the packet front matter, the `task/T-xxxx` branch, `depends_on`, every `contracts` entry (files exist
+   on the task branch, ADRs are Accepted), the spec (EARS lint, requirement ids named in the packet), new
+   acceptance tests, scope overlap with active tasks and brief size. It then runs every acceptance command on a
+   checkout of `task/T-xxxx` (a free slot or a temporary worktree). Each must fail, and for the right reason:
+   a failing assertion, or "module not found" for a module inside the task scope. A command that passes, or fails
+   with a syntax error, an out-of-scope missing module or a missing tool, is a `fail`.
+2. Any `fail`: fix it (`aod packet restore T-xxxx`, edit, `aod task commit T-xxxx ...`; acceptance-test edits
+   need `aod unlock --reason ...` first and `aod lock` after), then run preflight again.
+3. Judge what a script cannot: read the packet (`aod packet show T-xxxx`) next to the spec, ADRs and contracts it
+   names, and confirm they do not contradict each other (names, types, units, error cases) and that the tail of
+   each red acceptance run is about the missing behaviour. Resolve or accept each `warn` explicitly.
+4. If everything holds: `aod task set T-xxxx status=ready`, then `/aod:delegate T-xxxx`.

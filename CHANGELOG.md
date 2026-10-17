@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.0 — M3 memory and sessions
+
+- Skills: `/aod:session-start`, `/aod:session-end`, `/aod:adr`, `/aod:spec`, `/aod:decision`; `/aod:preflight` now
+  runs the CLI check.
+- CLI: `session start|end`, `journal new|check`, `adr new|accept|supersede`, `spec new|check` (EARS lint and
+  acceptance tracing), `preflight` (contracts/ADRs, spec, overlap, brief size, red-for-the-right-reason).
+- Templates: spec and journal; config `session.baseline`. ADR-0004.
+
 ## 0.3.0 — M2 guardrails
 
 - Hooks: SessionStart briefing (+ invariants after compaction), git guard, contract guard with

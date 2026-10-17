@@ -29,6 +29,16 @@ and run `codex login`. Check everything with `/aod:doctor`.
 | 4 | `/aod:verify` | Gates (scope, skip markers, report, acceptance re-run), then a fresh-context reviewer |
 | 5 | `/aod:close` | One squash commit (code, report, ledger, journal) with `Implemented-by` / `Reviewed-by` trailers; slot reset |
 
+Around the loop, project memory keeps every session from starting at zero:
+
+| Skill | What happens |
+| --- | --- |
+| `/aod:session-start` | Journal *Next step*, open tasks, slots, running jobs and baseline checks |
+| `/aod:spec` | Feature spec `S-xxxx` with EARS requirements, each traced to an acceptance test |
+| `/aod:adr` | Decision recorded as `ADR-xxxx`; accept or supersede |
+| `/aod:decision` | Decision request to you: context, options, recommendation, what happens without an answer |
+| `/aod:session-end` | Journal entry checked, memory committed, clean tree for the next session |
+
 Revisions resume the same Codex thread (max 3 rounds, then escalate to you). Try it on
 [examples/toy-calculator](examples/toy-calculator).
 
