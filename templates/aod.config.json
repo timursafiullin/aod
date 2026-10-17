@@ -1,0 +1,17 @@
+{
+  "base_branch": "main",
+  "slots": 2,
+  "worktrees_dir": "../{repo}-worktrees",
+  "codex": {
+    "command": null,
+    "model": null,
+    "effort": "medium",
+    "sandbox": "workspace-write"
+  },
+  "timeouts": {
+    "budget_factor": 1.5,
+    "idle_minutes": 20
+  },
+  "forbidden_always": ["schemas/**", "tests/acceptance/**", ".agents/**"],
+  "max_rounds": 3
+}

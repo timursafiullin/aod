@@ -36,6 +36,5 @@ by people who do not care how it works inside: install must be one step and must
 
 ## Open items (verify in M0/M1)
 
-- `codex` is not installed on the author's machine yet: pin `codex exec` flags (`--output-schema`, `--json`,
-  `-o`, `resume`) against a real install before writing `aod delegate`.
+- Resolved by ADR-0002: `codex exec` flags pinned against codex-cli 0.163.0.
 - Whether Codex scans `.agents/skills/` (possible collision with the `.agents/` memory folder).

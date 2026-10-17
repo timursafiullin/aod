@@ -1,10 +1,12 @@
 // Environment checks for AOD. Pure functions take an injectable `run` so tests need no real tools.
 import { spawnSync } from 'node:child_process';
+import { locateCodex, needsShell } from './codex.mjs';
 
 export const MIN_NODE_MAJOR = 20;
+export const MIN_GIT = [2, 38]; // git merge-tree --write-tree
 
 export function defaultRun(cmd, args) {
-  const res = spawnSync(cmd, args, { encoding: 'utf8', shell: process.platform === 'win32' });
+  const res = spawnSync(cmd, args, { encoding: 'utf8', shell: needsShell([cmd]) });
   if (res.error || res.status !== 0) return null;
   return (res.stdout || res.stderr || '').trim();
 }
@@ -30,7 +32,9 @@ export const CHECKS = [
     required: true,
     run: ({ run }) => {
       const out = run('git', ['--version']);
-      return { ok: !!out, detail: out || 'not found', hint: out ? undefined : 'Install git and add it to PATH' };
+      const v = parseVersion(out);
+      const ok = !!v && (v.major > MIN_GIT[0] || (v.major === MIN_GIT[0] && v.minor >= MIN_GIT[1]));
+      return { ok, detail: out || 'not found', hint: ok ? undefined : `Install git >= ${MIN_GIT.join('.')} and add it to PATH` };
     },
   },
   {
@@ -48,8 +52,9 @@ export const CHECKS = [
   {
     id: 'codex',
     required: false,
-    run: ({ run }) => {
-      const out = run('codex', ['--version']);
+    run: ({ run, locate }) => {
+      const cmd = locate();
+      const out = cmd ? run(cmd[0], [...cmd.slice(1), '--version']) : null;
       return {
         ok: !!out,
         detail: out || 'not found',
@@ -68,7 +73,7 @@ export const CHECKS = [
 ];
 
 export function runDoctor(ctx = {}) {
-  const full = { run: defaultRun, nodeVersion: process.version, ...ctx };
+  const full = { run: defaultRun, nodeVersion: process.version, locate: () => locateCodex(), ...ctx };
   const results = CHECKS.map((c) => ({ id: c.id, required: c.required, ...c.run(full) }));
   const ok = results.every((r) => r.ok || !r.required);
   const mode = results.find((r) => r.id === 'codex')?.ok ? 'claude+codex' : 'claude-only';
