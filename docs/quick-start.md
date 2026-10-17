@@ -1,7 +1,8 @@
 # Quick start: first delegated task in 15 minutes
 
 This guide takes you from nothing to one task implemented by Codex, checked by gates and a fresh-context
-reviewer, and merged by Claude, using the tiny calculator in `examples/toy-calculator`.
+reviewer, and merged by Claude, using the tiny calculator in `examples/toy-calculator`. To watch the loop before installing anything else,
+run `node scripts/dev/demo.mjs` in a clone of the repository: it uses a simulated Codex and takes a few seconds.
 
 ## 1. Prerequisites (3 min)
 

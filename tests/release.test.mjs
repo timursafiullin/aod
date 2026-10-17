@@ -50,3 +50,15 @@ test('README links only to files that exist', () => {
     assert.ok(existsSync(join(ROOT, target.split('#')[0])), `README links to missing ${target}`);
   }
 });
+
+test('the demo runs the whole loop and shows a gate catching an out-of-scope edit', async () => {
+  const { runDemo } = await import('../scripts/dev/demo.mjs');
+  const lines = [];
+  const r = runDemo({ log: (l) => lines.push(l) });
+  assert.equal(r.ok, true);
+  assert.equal(r.steps.length, 8);
+  const out = lines.join('\n');
+  assert.match(out, /FAIL scope: README\.md \(outside scope\)/);
+  assert.match(out, /Implemented-by: codex/);
+  assert.match(out, /first-pass acceptance 0%, avg rounds 1, scope violations 1/);
+});

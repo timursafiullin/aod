@@ -19,6 +19,10 @@ repository (`.agents/`), so no session starts from zero.
 Requirements: Node.js >= 20 and git >= 2.38. For delegation, install [Codex CLI](https://github.com/openai/codex)
 and run `codex login`. Check everything with `/aod:doctor`.
 
+Want to see it first? From a clone of this repository, `node scripts/dev/demo.mjs` runs the whole loop in a
+throwaway repo in a few seconds, with a simulated Codex: packet, preflight, delegation, a gate catching an
+out-of-scope edit, a revision round, the squash merge and the retro. Add `--slow` to record it.
+
 New here? The [quick start](docs/quick-start.md) takes you from install to a first task implemented by Codex and
 merged by Claude in about 15 minutes.
 

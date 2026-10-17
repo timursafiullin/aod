@@ -4,6 +4,8 @@
 
 - Methodology updated to AOD 2.0, in English (`docs/aod-methodology-EN.md`) and Russian
   (`docs/aod-methodology-RU.md`); `docs/aod-methodology.md` is gone.
+- Demo: `node scripts/dev/demo.mjs [--slow] [--keep]` runs the whole loop with a simulated Codex, including a
+  gate catching an out-of-scope edit and a REVISE round.
 - Quick start (`docs/quick-start.md`): install to first delegated and merged task in about 15 minutes.
 - `CONTRIBUTING.md`, `SECURITY.md`, issue forms and a pull request template.
 - Release process (ADR-0008): semver for the user-facing surface, `CHANGELOG.md` as the release notes, and a
