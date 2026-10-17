@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.5.0 — M4 cross-family and routing
+
+- Routing presets `max` (default), `balanced`, `economy`; `aod route show|preset`; escalation after a failed job or
+  from review round 2. Breaking: `codex.model`/`codex.effort` are no longer read; use `routing`.
+- Codex unavailable or out of quota: exit 5, task back to `ready`, no failure counted; stop and ask (ADR-0006).
+- `aod review` (Codex reviews Claude-written changes) and `aod explore` (read-only Codex research);
+  skills `/aod:cross-review`, `/aod:explore`.
+- `aod init` scaffolds `.agents/skills/aod-implementer`, which Codex loads in every slot.
+
 ## 0.4.1 — M3.1 dry-run fixes
 
 - `aod task commit` refuses while the referenced spec/ADRs are uncommitted on the base branch; new `aod task sync`.

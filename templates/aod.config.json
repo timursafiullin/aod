@@ -4,9 +4,22 @@
   "worktrees_dir": "../{repo}-worktrees",
   "codex": {
     "command": null,
-    "model": null,
-    "effort": "medium",
     "sandbox": "workspace-write"
+  },
+  "routing": {
+    "preset": "max",
+    "implement": {
+      "model": "gpt-6.1-sol",
+      "effort": "medium"
+    },
+    "escalate": {
+      "model": "gpt-6.1-sol",
+      "effort": "high"
+    },
+    "explore": {
+      "model": "gpt-6-luna",
+      "effort": "low"
+    }
   },
   "timeouts": {
     "budget_factor": 1.5,

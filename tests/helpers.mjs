@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 export const CLI = fileURLToPath(new URL('../scripts/aod.mjs', import.meta.url));
 export const FAKE = fileURLToPath(new URL('./fixtures/fake-codex.mjs', import.meta.url));
 
-export function setup(scenario) {
+export function setup(scenario, extraEnv = {}) {
   const tmp = mkdtempSync(join(tmpdir(), 'aod-e2e-'));
   const repo = join(tmp, 'toy');
   mkdirSync(repo);
@@ -18,7 +18,7 @@ export function setup(scenario) {
     assert.equal(r.status, 0, `git ${args.join(' ')}: ${r.stderr}`);
     return r.stdout.trim();
   };
-  const env = { ...process.env, AOD_CODEX_CMD: JSON.stringify([process.execPath, FAKE]), FAKE_CODEX_SCENARIO: scenario };
+  const env = { ...process.env, AOD_CODEX_CMD: JSON.stringify([process.execPath, FAKE]), FAKE_CODEX_SCENARIO: scenario, ...extraEnv };
   const aod = (...args) => {
     const r = spawnSync(process.execPath, [CLI, ...args], { cwd: repo, encoding: 'utf8', env });
     let json = null;
@@ -34,13 +34,14 @@ export function setup(scenario) {
   writeFileSync(join(repo, 'README.md'), '# toy\n');
   git('add', '-A');
   git('commit', '-q', '-m', 'initial');
-  return { tmp, repo, git, aod, cleanup: () => rmSync(tmp, { recursive: true, force: true }) };
+  return { tmp, repo, git, aod, env, cleanup: () => rmSync(tmp, { recursive: true, force: true }) };
 }
 
 export function prepareTask({ repo, git, aod }) {
   let r = aod('init', '--slots', '1');
   assert.equal(r.code, 0, r.stderr);
   assert.ok(!existsSync(join(repo, '..', 'toy-worktrees')), 'slots are created lazily by delegate');
+  assert.ok(existsSync(join(repo, '.agents', 'skills', 'aod-implementer', 'SKILL.md')), 'implementer skill for Codex');
   git('add', '-A');
   git('commit', '-q', '-m', 'chore: aod scaffold');
 

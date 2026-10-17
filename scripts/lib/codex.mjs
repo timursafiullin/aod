@@ -1,6 +1,6 @@
 // Locating and invoking the Codex CLI (see ADR-0002 for the pinned interface).
 import { existsSync } from 'node:fs';
-import { delimiter, join } from 'node:path';
+import { delimiter, isAbsolute, join } from 'node:path';
 import { homedir } from 'node:os';
 
 const isWin = process.platform === 'win32';
@@ -25,9 +25,12 @@ function knownInstallDirs() {
 }
 
 // Returns argv prefix, e.g. ["C:/.../codex.exe"] or ["node", "fake-codex.mjs"]; null when not found.
+// An explicitly configured command whose program is an absolute path that does not exist counts as missing.
+const usable = (cmd) => (cmd && (!isAbsolute(cmd[0]) || existsSync(cmd[0])) ? cmd : null);
+
 export function locateCodex(config = {}) {
-  if (process.env.AOD_CODEX_CMD) return JSON.parse(process.env.AOD_CODEX_CMD);
-  if (config.codex?.command) return Array.isArray(config.codex.command) ? config.codex.command : [config.codex.command];
+  if (process.env.AOD_CODEX_CMD) return usable(JSON.parse(process.env.AOD_CODEX_CMD));
+  if (config.codex?.command) return usable(Array.isArray(config.codex.command) ? config.codex.command : [config.codex.command]);
   const found = onPath('codex') || knownInstallDirs().find((p) => existsSync(p));
   return found ? [found] : null;
 }

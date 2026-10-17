@@ -1,14 +1,33 @@
 #!/usr/bin/env node
 // Stand-in for `codex exec` in tests. Behaviour is chosen by FAKE_CODEX_SCENARIO:
-//   good | out-of-scope | skip | blocked. On `exec resume` it repairs out-of-scope/skip damage.
+//   good | out-of-scope | skip | blocked | quota | crash. On `exec resume` it repairs out-of-scope/skip damage.
+// FAKE_CODEX_ARGS_LOG, when set, receives one JSON line with the argv of every call.
 // Like real Codex under workspace-write it never commits (.git is read-only); AOD commits for it.
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const argv = process.argv.slice(2);
 if (argv[0] === '--version') {
   console.log('codex-cli 0.0.0-fake');
+  process.exit(0);
+}
+if (process.env.FAKE_CODEX_ARGS_LOG) appendFileSync(process.env.FAKE_CODEX_ARGS_LOG, `${JSON.stringify(argv)}\n`);
+if (argv[0] === 'exec' && argv[1] === 'review') {
+  const prompt = readFileSync(0, 'utf8');
+  if (process.env.FAKE_CODEX_SCENARIO === 'quota') {
+    process.stderr.write("ERROR: You've hit your usage limit.\n");
+    process.exit(1);
+  }
+  if (prompt && argv.some((a) => ['--base', '--commit', '--uncommitted'].includes(a))) {
+    process.stderr.write("error: the argument '--commit <SHA>' cannot be used with '[PROMPT]'\n");
+    process.exit(2);
+  }
+  console.log(prompt ? 'F1 [major] src/add.mjs:1 - focus finding. Required: fix.' : 'No actionable defects were identified.');
+  process.exit(0);
+}
+if (argv.includes('read-only')) {
+  writeFileSync(argv[argv.indexOf('-o') + 1], '- add is defined in src/add.mjs:1\n');
   process.exit(0);
 }
 const resume = argv[1] === 'resume';
@@ -35,6 +54,14 @@ const write = (rel, text) => {
 const emit = (ev) => process.stdout.write(`${JSON.stringify(ev)}\n`);
 
 emit({ type: 'thread.started', thread_id: threadId });
+if (scenario === 'quota') {
+  process.stderr.write("ERROR: You've hit your usage limit. Try again in 3 hours.\n");
+  process.exit(1);
+}
+if (scenario === 'crash' && !process.env.FAKE_CODEX_HEALED) {
+  process.stderr.write('panic: sandbox setup failed\n');
+  process.exit(1);
+}
 emit({ type: 'turn.started' });
 
 let status = 'done';

@@ -32,7 +32,7 @@ them.
 - **REVISE**: write the findings to `.agents/tasks/jobs/T-xxxx/findings-<round>.md`, one per line:
   `F1 [blocker] path:line - <problem>. Required: <change>. Verify: <command>.`
   Then resume the same Codex thread in the background: `aod revise T-xxxx --findings <file>`
-  and verify again when notified. `rounds` in the ledger counts REVISE rounds only. Exit 4 means the 3-round
+  and verify again when notified (exit 5: Codex unavailable, stop and ask the user). `rounds` in the ledger counts REVISE rounds only. Exit 4 means the 3-round
   limit is reached: escalate to the user with the task, the disagreement, options and a recommendation.
 - **REJECT** (wrong approach, wrong brief, repeated scope escapes): `aod reject T-xxxx`, then rewrite or split
   the packet.
