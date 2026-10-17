@@ -18,3 +18,7 @@ CLI: `aod` means `node "${CLAUDE_PLUGIN_ROOT}/scripts/aod.mjs"`.
    journal. Add `--prune` to delete `task/T-xxxx` and `codex/T-xxxx` afterwards.
 4. Confirm the base branch is green by running the project's test command.
 5. Pushing is the user's call; do not push unless asked.
+
+Ledger rule: `.agents/tasks/index.json` and `index.md` may stay uncommitted on the base branch while you work.
+They are committed by `aod merge` (with the task) or by `aod session end --commit`, whichever comes first, and
+never on a task branch.

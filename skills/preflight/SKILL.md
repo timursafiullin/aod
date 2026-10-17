@@ -15,7 +15,8 @@ CLI: `aod` means `node "${CLAUDE_PLUGIN_ROOT}/scripts/aod.mjs"`.
    checkout of `task/T-xxxx` (a free slot or a temporary worktree). Each must fail, and for the right reason:
    a failing assertion, or "module not found" for a module inside the task scope. A command that passes, or fails
    with a syntax error, an out-of-scope missing module or a missing tool, is a `fail`.
-2. Any `fail`: fix it (`aod packet restore T-xxxx`, edit, `aod task commit T-xxxx ...`; acceptance-test edits
+2. Any `fail`: a spec or ADR missing on the task branch means it was committed on the base branch later: run
+   `aod task sync T-xxxx`. Otherwise fix it (`aod packet restore T-xxxx`, edit, `aod task commit T-xxxx ...`; acceptance-test edits
    need `aod unlock --reason ...` first and `aod lock` after), then run preflight again.
 3. Judge what a script cannot: read the packet (`aod packet show T-xxxx`) next to the spec, ADRs and contracts it
    names, and confirm they do not contradict each other (names, types, units, error cases) and that the tail of

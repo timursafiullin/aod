@@ -18,6 +18,10 @@ CLI: `aod` means `node "${CLAUDE_PLUGIN_ROOT}/scripts/aod.mjs"`.
    One "shall" per requirement; no vague words (should, fast, user-friendly, etc.). Cover error cases with
    "If ..., then ...". Under each, add `Acceptance: <test file> :: <test name>` for the test that will prove it.
 4. `aod spec check S-xxxx` must report no errors; resolve warnings or say why they stay.
-5. Large or product-visible specs go to the user for approval (`/aod:decision`); then set `status: approved`.
+5. Approve before cutting packets (`status: approved`; preflight warns on `draft`):
+   - the architect approves a spec that only refines the vision and accepted ADRs (no new product behaviour the
+     user has not asked for);
+   - anything product-visible, costly or ambiguous goes to the user first (`/aod:decision`).
+   Commit the approved spec on the base branch (`docs: S-xxxx`) before `/aod:packet`.
 6. Cut packets with `/aod:packet`: set the packet's `spec:` to the spec path and write
    `Implements: R1, R2` in the packet body. Write each acceptance test exactly as traced.

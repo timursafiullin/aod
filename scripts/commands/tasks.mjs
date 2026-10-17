@@ -1,5 +1,5 @@
 // aod packet new|validate, aod task commit|set
-import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   TEMPLATES, assertTaskId, checkPacket, loadIndex, newTaskRecord, openProject, readPacketText, requireInitialized,
@@ -35,6 +35,9 @@ export function packetValidate({ cwd, args }) {
   const id = assertTaskId(args[0]);
   const { errors, data } = checkPacket(readPacketText(project, id), id);
   const index = loadIndex(project);
+  for (const field of ['scope', 'acceptance']) {
+    for (const v of data?.[field] || []) if (/<[^<>]+>/.test(v)) errors.push(`${field}: fill in the placeholder in "${v}"`);
+  }
   for (const dep of data?.depends_on || []) {
     if (!index.tasks.some((t) => t.id === dep)) errors.push(`depends_on ${dep} is not in index.json`);
   }
@@ -59,6 +62,51 @@ export function packetRestore({ cwd, args }) {
   return { id, restored: project.packetRel(id), next: `edit it, then aod task commit ${id} [changed test paths...]` };
 }
 
+// Repo-relative paths of the spec and contracts a packet references (ADR ids resolved to their files).
+export function referencedDocs(project, packet) {
+  const out = [];
+  if (packet.spec && packet.spec !== 'none') out.push(packet.spec.replace(/\\/g, '/'));
+  const decisions = join(project.agents, 'decisions');
+  for (const c of packet.contracts || []) {
+    if (/^ADR-\d{4}$/.test(c)) {
+      const f = existsSync(decisions) && readdirSync(decisions).find((n) => n.startsWith(`${c}-`) || n === `${c}.md`);
+      out.push(f ? `.agents/decisions/${f}` : `.agents/decisions/${c}*.md`);
+    } else out.push(c.replace(/\\/g, '/'));
+  }
+  return out;
+}
+
+// Each referenced doc must be committed (and unchanged) on `ref`, so task branches cut from it carry it.
+function docProblems(root, ref, docs, { checkWorkingTree }) {
+  const problems = [];
+  for (const d of docs) {
+    if (d.includes('*')) problems.push(`${d} (no such ADR)`);
+    else if (!git(['cat-file', '-e', `${ref}:${d}`], root, { allowFail: true }).ok) problems.push(`${d} (not committed on ${ref})`);
+    else if (checkWorkingTree && git(['status', '--porcelain', '--', d], root)) problems.push(`${d} (uncommitted changes)`);
+  }
+  return problems;
+}
+
+// Merge the base branch into task/T-xxxx without a checkout (brings in ADRs/specs committed after the branch).
+export function taskSync({ cwd, args, flags }) {
+  const project = requireInitialized(openProject(cwd));
+  const id = assertTaskId(args[0]);
+  const { root, config } = project;
+  const branch = taskBranch(id);
+  const base = config.base_branch;
+  if (!branchExists(root, branch)) throw new AodError(`${branch} does not exist; run aod task commit ${id}`);
+  if (branchExists(root, `codex/${id}`) && !flags.force) {
+    throw new AodError(`${id} is already delegated (codex/${id} exists); syncing now would not reach the implementer. Use --force to sync anyway.`);
+  }
+  if (git(['merge-base', '--is-ancestor', base, branch], root, { allowFail: true }).ok) return { id, branch, synced: false, note: `already contains ${base}` };
+  const probe = git(['merge-tree', '--write-tree', branch, base], root, { allowFail: true });
+  if (!probe.ok) throw new AodError(`${branch} conflicts with ${base}:\n${probe.out}`);
+  const tree = probe.out.split('\n')[0];
+  const commit = git(['commit-tree', tree, '-p', branch, '-p', base, '-m', `${id}: sync with ${base}`], root);
+  git(['update-ref', `refs/heads/${branch}`, commit], root);
+  return { id, branch, synced: true, commit: commit.slice(0, 7), next: `aod preflight ${id}` };
+}
+
 // Commit packet + acceptance tests onto task/T-xxxx without touching the base branch or switching branches:
 // a temporary index builds the commit, then the files leave the main working tree (they live on task/T-xxxx).
 // Run again with edited files to add a fix-up commit to an existing task branch.
@@ -75,6 +123,17 @@ export function taskCommit({ cwd, args }) {
   for (const p of paths) if (!existsSync(join(root, p))) throw new AodError(`${p} does not exist`);
 
   const branch = taskBranch(id);
+  // Specs and ADRs are project memory on the base branch; the task branch must carry the committed versions.
+  const { data: packet } = checkPacket(readFileSync(project.packetPath(id), 'utf8'), id);
+  const docs = referencedDocs(project, packet);
+  const onBase = docProblems(root, config.base_branch, docs, { checkWorkingTree: true });
+  if (onBase.length) {
+    throw new AodError(`commit the referenced spec/ADRs on ${config.base_branch} first, then run this again:\n  ${onBase.join('\n  ')}`);
+  }
+  if (branchExists(root, branch)) {
+    const onTask = docProblems(root, branch, docs, { checkWorkingTree: false });
+    if (onTask.length) throw new AodError(`${branch} predates these files; run aod task sync ${id} first:\n  ${onTask.join('\n  ')}`);
+  }
   const parent = git(['rev-parse', branchExists(root, branch) ? branch : config.base_branch], root);
   const gitDir = git(['rev-parse', '--absolute-git-dir'], root);
   const env = { GIT_INDEX_FILE: join(gitDir, `aod-index-${id}`) };

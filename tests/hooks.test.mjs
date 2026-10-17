@@ -6,8 +6,8 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { gitInvocations } from '../scripts/lib/shellwords.mjs';
-import { destructive, slotWrite } from '../scripts/hooks/git-guard.mjs';
+import { gitInvocations, writeTargets } from '../scripts/lib/shellwords.mjs';
+import { destructive, slotWrite } from '../scripts/hooks/bash-guard.mjs';
 import { integrityChecks } from '../scripts/lib/integrity.mjs';
 import { prepareTask, setup } from './helpers.mjs';
 
@@ -28,6 +28,18 @@ test('shellwords finds git invocations through quotes, operators, -C and cd', ()
   assert.deepEqual(gitInvocations('echo "git push --force"'), []);
   assert.equal(gitInvocations(String.raw`git -C "C:\Users\a b\slot" status`)[0].dir, String.raw`C:\Users\a b\slot`);
   assert.deepEqual(gitInvocations('git -c core.x=1 reset --hard HEAD~1'), [{ dir: null, sub: 'reset', args: ['--hard', 'HEAD~1'] }]);
+});
+
+test('shell write targets', () => {
+  const t = (cmd) => writeTargets(cmd).map((w) => w.path || `cd:${w.cd}`);
+  assert.deepEqual(t('echo x > tests/acceptance/a.mjs 2>&1'), ['tests/acceptance/a.mjs']);
+  assert.deepEqual(t('cat a >> b.txt; ls > /dev/null'), ['b.txt']);
+  assert.deepEqual(t('node gen.mjs | tee -a out/x.json'), ['out/x.json']);
+  assert.deepEqual(t('cp -r src/a.js schemas/b.json && mv old new'), ['schemas/b.json', 'old', 'new']);
+  assert.deepEqual(t("sed -i 's/a/b/' tests/acceptance/x.mjs"), ['tests/acceptance/x.mjs']);
+  assert.deepEqual(t('rm -f a b; cd sub && touch c'), ['a', 'b', 'cd:sub', 'c']);
+  assert.deepEqual(t('git rm -q tests/acceptance/x.mjs'), ['tests/acceptance/x.mjs']);
+  assert.deepEqual(t('node --test tests/acceptance/x.mjs 2>&1 | head'), []);
 });
 
 test('destructive git rules', () => {
@@ -73,7 +85,7 @@ test('integrity heuristics', () => {
 test('hooks are silent outside AOD repositories', () => {
   const dir = mkdtempSync(join(tmpdir(), 'aod-noproj-'));
   try {
-    assert.equal(runHook('git-guard', { cwd: dir, tool_input: { command: 'git push --force' } }).code, 0);
+    assert.equal(runHook('bash-guard', { cwd: dir, tool_input: { command: 'git push --force' } }).code, 0);
     assert.equal(runHook('contract-guard', { cwd: dir, tool_input: { file_path: join(dir, 'schemas/x.json') } }).code, 0);
     const s = runHook('session-start', { cwd: dir, source: 'startup' });
     assert.equal(s.code, 0);
@@ -93,14 +105,14 @@ test('guards, briefing, stop gate and slot pre-commit in an AOD repo', () => {
     const slot = join(repo, '..', 'toy-worktrees', 'codex-1');
 
     // git guard
-    let r = runHook('git-guard', { cwd: repo, tool_input: { command: 'git push --force origin main' } });
+    let r = runHook('bash-guard', { cwd: repo, tool_input: { command: 'git push --force origin main' } });
     assert.equal(r.code, 2, r.stderr);
     assert.match(r.stderr, /force-push/);
-    assert.equal(runHook('git-guard', { cwd: repo, tool_input: { command: 'git status && git log -1' } }).code, 0);
-    r = runHook('git-guard', { cwd: repo, tool_input: { command: `git -C "${slot}" checkout --detach codex/T-0001` } });
+    assert.equal(runHook('bash-guard', { cwd: repo, tool_input: { command: 'git status && git log -1' } }).code, 0);
+    r = runHook('bash-guard', { cwd: repo, tool_input: { command: `git -C "${slot}" checkout --detach codex/T-0001` } });
     assert.equal(r.code, 2);
     assert.match(r.stderr, /worktree slot/);
-    assert.equal(runHook('git-guard', { cwd: repo, tool_input: { command: `git -C "${slot}" diff --stat task/T-0001...codex/T-0001` } }).code, 0);
+    assert.equal(runHook('bash-guard', { cwd: repo, tool_input: { command: `git -C "${slot}" diff --stat task/T-0001...codex/T-0001` } }).code, 0);
 
     // contract guard + unlock
     const acc = join(repo, 'tests', 'acceptance', 'new.test.mjs');
@@ -109,9 +121,20 @@ test('guards, briefing, stop gate and slot pre-commit in an AOD repo', () => {
     assert.match(r.stderr, /aod unlock/);
     assert.equal(runHook('contract-guard', { cwd: repo, tool_input: { file_path: join(repo, 'src', 'x.mjs') } }).code, 0);
     assert.equal(runHook('contract-guard', { cwd: repo, tool_input: { file_path: join(slot, 'src', 'add.mjs') } }).code, 2);
+    // the same protection for shell writes
+    const bash = (command) => runHook('bash-guard', { cwd: repo, tool_input: { command } });
+    r = bash('echo probe > tests/acceptance/probe.test.mjs');
+    assert.equal(r.code, 2);
+    assert.match(r.stderr, /shell write \(redirect >\) blocked/);
+    assert.equal(bash("sed -i 's/5/6/' tests/acceptance/add.test.mjs").code, 2);
+    assert.equal(bash(`echo x > "${join(slot, 'src', 'hack.mjs')}"`).code, 2, 'slots belong to the implementer');
+    assert.equal(bash('echo x > src/ok.mjs && node --test 2>&1 | tail -5').code, 0);
+    assert.equal(bash('cd tests && cat > acceptance/x.mjs').code, 2, 'cd is followed');
     assert.equal(aod('unlock').code, 2, 'reason is required');
     assert.equal(aod('unlock', '--reason', 'acceptance tests for T-0002').code, 0);
     assert.equal(runHook('contract-guard', { cwd: repo, tool_input: { file_path: acc } }).code, 0);
+    assert.equal(bash('echo probe > tests/acceptance/probe.test.mjs').code, 0, 'unlocked');
+    rmSync(acc.replace('new.test.mjs', 'probe.test.mjs'), { force: true });
     assert.equal(aod('lock').code, 0);
     assert.equal(runHook('contract-guard', { cwd: repo, tool_input: { file_path: acc } }).code, 2);
 

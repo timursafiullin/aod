@@ -9,11 +9,15 @@ Agent: architect   Task: none
 - 31 tests (new `tests/memory.test.mjs`). ADR-0004.
 
 ## Not done
-- New skills not exercised live through the installed plugin yet.
 - Spec approval by the PO is a convention only.
+
+## M3.1 (dry run on aod-toy2 through the installed plugin)
+- All 7 steps passed. Fixed the 13 findings: task commit refusal + `aod task sync`, shell-write guard,
+  EARS comma handling, one ledger rule, session start/end, init and template gaps (ADR-0005).
 
 ## Decisions
 - ADR-0004: memory and session tooling; deterministic preflight with failure-reason heuristic.
+- ADR-0005: task branch sync, shell-write guard, ledger rule.
 
 ## Open questions
 - Codex project skill path (`.agents/skills` vs `.codex/skills`) — M4.

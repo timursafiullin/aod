@@ -17,6 +17,10 @@ CLI: `aod` means `node "${CLAUDE_PLUGIN_ROOT}/scripts/aod.mjs"`.
    - Next step: the single concrete action the next session should start with (task id, command, file).
 3. `aod journal check` must pass.
 4. If contracts are unlocked, `aod lock`. Background jobs still running are noted in the journal.
-5. `aod session end` reports what is left. When only `.agents/` memory files are pending and the user agrees,
+5. `aod session end` reports what is left (`status: pending-commit` is normal, not an error). When only `.agents/` memory files are pending and the user agrees,
    `aod session end --commit` commits them (`docs: session journal <date>`). Code changes are committed
    separately, never folded into the journal commit.
+
+Ledger rule: `.agents/tasks/index.json` and `index.md` may stay uncommitted on the base branch while you work.
+They are committed by `aod merge` (with the task) or by `aod session end --commit`, whichever comes first, and
+never on a task branch.

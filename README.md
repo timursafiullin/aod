@@ -49,7 +49,7 @@ Hooks enforce the red lines deterministically, but only inside repositories wher
 | Hook | Enforces |
 | --- | --- |
 | SessionStart | Briefing from the journal's *Next step*, open tasks and slots; invariants re-injected after compaction |
-| Git guard | No force-push, `reset --hard`, rebase, `clean -f`, branch deletion or discarding checkouts; read-only git inside slots |
+| Bash guard | No force-push, `reset --hard`, rebase, `clean -f`, branch deletion or discarding checkouts; read-only git inside slots; no shell writes to protected paths |
 | Contract guard | Contracts, acceptance tests, accepted ADRs and slots are not edited unless `aod unlock --reason ...` is active |
 | Stop (opt-in) | "Done means green": a turn cannot end with changes while the configured checks fail |
 | Slot pre-commit | Commits on `codex/T-xxxx` must stay inside the packet scope |

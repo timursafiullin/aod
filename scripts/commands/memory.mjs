@@ -10,7 +10,13 @@ import { latestJournal } from '../hooks/session-start.mjs';
 import { activeUnlock } from '../hooks/contract-guard.mjs';
 
 export const today = () => new Date().toISOString().slice(0, 10);
-export const slugify = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 50) || 'untitled';
+export function slugify(s, max = 50) {
+  const full = s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  if (full.length <= max) return full || 'untitled';
+  const cut = full.slice(0, max + 1);
+  const at = cut.lastIndexOf('-');
+  return (at > 10 ? cut.slice(0, at) : full.slice(0, max)).replace(/-$/, '');
+}
 const rel = (p) => p.replace(/\\/g, '/');
 
 function nextNumber(dir, re) {
@@ -197,11 +203,20 @@ export function sessionStart({ cwd }) {
       .map((s) => ({ name: s.name, branch: s.branch, clean: s.clean, free: s.free })),
     baseline,
     unlocked: unlock ? { until: unlock.until, reason: unlock.reason } : null,
-    read_next: [roadmap, ...(index.tasks.filter((t) => ['in_progress', 'review', 'blocked'].includes(t.status)).map((t) => project.packetPath(t.id)))]
-      .filter(existsSync).map((p) => rel(p.slice(root.length + 1))),
+    read_next: [],
+    notes: [],
   };
+  const context = (f) => join(project.agents, 'context', f);
+  const first = !result.journal;
+  result.read_next = [...(first ? [context('vision.md')] : []), context('invariants.md'), roadmap,
+    ...index.tasks.filter((t) => ['in_progress', 'review', 'blocked'].includes(t.status)).map((t) => project.packetPath(t.id))]
+    .filter(existsSync).map((p) => rel(p.slice(root.length + 1)));
+  if (first) result.notes.push('First AOD session here: read the vision and invariants, then plan with /aod:spec and /aod:adr before cutting packets.');
+  if (!baseline.length) result.notes.push('No baseline checks configured: set session.baseline in .agents/aod.config.json (e.g. the project test command) so each session starts from a verified green state.');
   const red = baseline.some((b) => b.exit_code !== 0);
-  result.verdict = red ? 'baseline is RED: fix or report before new work' : !result.main.on_base ? `main checkout is not on ${config.base_branch}` : 'ready';
+  result.verdict = red ? 'baseline is RED: fix or report before new work'
+    : !result.main.on_base ? `main checkout is not on ${config.base_branch}`
+      : baseline.length ? 'ready' : 'ready (baseline not configured)';
   return { exit: red ? 1 : 0, result };
 }
 
@@ -224,9 +239,13 @@ export function sessionEnd({ cwd, flags }) {
     git(['commit', '-q', '-m', `docs: session journal ${today()}`], root);
     commit = git(['rev-parse', '--short', 'HEAD'], root);
   }
+  // Pending memory files are not an error: the ledger rule commits them here (or with the next aod merge).
+  const pending = commit ? [] : memory;
   return {
-    exit: memory.length && !flags.commit ? 1 : 0,
-    result: { ok: !memory.length || !!commit, journal: check.result.file, committed: commit, pending: commit ? [] : memory,
-      next: memory.length && !commit ? 'review the memory changes, then aod session end --commit' : 'session closed: tree clean' },
+    exit: 0,
+    result: {
+      ok: true, status: pending.length ? 'pending-commit' : 'closed', journal: check.result.file, committed: commit, pending,
+      next: pending.length ? 'review the memory changes, then aod session end --commit' : 'session closed: tree clean',
+    },
   };
 }

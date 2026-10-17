@@ -21,6 +21,8 @@ Without an answer: <I continue with the recommendation | work on <branch/task> w
 ```
 
 Rules:
+- When you ask, record the open request at once: a line under Open questions in today's journal entry (and in
+  the spec's Open questions when it concerns a spec), with the recommendation and what happens without an answer.
 - At most one decision per request; two or three options, never a menu of everything.
 - For a review dispute after round 3: name the task, what the implementer and the reviewer disagree on, and the
   evidence (failing command, diff lines).

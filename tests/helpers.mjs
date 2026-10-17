@@ -49,8 +49,7 @@ export function prepareTask({ repo, git, aod }) {
   assert.equal(r.json.id, 'T-0001');
   const packetPath = join(repo, '.agents', 'tasks', 'T-0001.md');
   const packet = readFileSync(packetPath, 'utf8')
-    .replace('  - src/**', '  - src/**')
-    .replace('  - npm test', '  - node tests/acceptance/add.test.mjs');
+    .replace(/^ {2}- <command.*$/m, '  - node tests/acceptance/add.test.mjs');
   writeFileSync(packetPath, packet);
   mkdirSync(join(repo, 'tests', 'acceptance'), { recursive: true });
   writeFileSync(join(repo, 'tests', 'acceptance', 'add.test.mjs'),
@@ -65,11 +64,11 @@ export function prepareTask({ repo, git, aod }) {
   r = aod('packet', 'restore', 'T-0001');
   assert.equal(r.code, 0, r.stderr);
   assert.equal(aod('packet', 'restore', 'T-0001').code, 1, 'refuses to overwrite a restored packet');
-  writeFileSync(packetPath, readFileSync(packetPath, 'utf8').replace('budget_minutes: 60', 'budget_minutes: 30'));
+  writeFileSync(packetPath, readFileSync(packetPath, 'utf8').replace('budget_minutes: 30', 'budget_minutes: 45'));
   r = aod('task', 'commit', 'T-0001');
   assert.equal(r.code, 0, r.stderr);
   assert.equal(git('rev-list', '--count', 'main..task/T-0001'), '2');
-  assert.match(git('show', 'task/T-0001:.agents/tasks/T-0001.md'), /budget_minutes: 30/);
+  assert.match(git('show', 'task/T-0001:.agents/tasks/T-0001.md'), /budget_minutes: 45/);
   assert.equal(git('status', '--porcelain', '--untracked-files=all', '--', '.agents/tasks/T-0001.md', 'tests'), '');
 
   r = aod('delegate', 'T-0001');

@@ -98,16 +98,16 @@ export function preflight({ cwd, args, flags }) {
         .split('\n').find((f) => f.startsWith(`${c}-`) || f === `${c}.md`);
       const text = file ? showOnBranch(root, ref, `.agents/decisions/${file}`) : null;
       const accepted = text && /^Status:\s*Accepted/m.test(text);
-      add(`contract ${c}`, accepted ? 'pass' : 'fail', !text ? 'ADR not found' : accepted ? 'Accepted' : 'ADR is not Accepted');
+      add(`contract ${c}`, accepted ? 'pass' : 'fail', !text ? `ADR not on ${ref}: commit it on the base branch, then aod task sync ${id}` : accepted ? 'Accepted' : 'ADR is not Accepted');
     } else {
       const exists = git(['cat-file', '-e', `${ref}:${c}`], root, { allowFail: true }).ok;
-      add(`contract ${c}`, exists ? 'pass' : 'fail', exists ? 'exists' : `not found on ${ref}`);
+      add(`contract ${c}`, exists ? 'pass' : 'fail', exists ? 'exists' : `not found on ${ref}: commit it on the base branch, then aod task sync ${id}`);
     }
   }
 
   if (packet.spec && packet.spec !== 'none') {
     const spec = showOnBranch(root, ref, packet.spec);
-    if (!spec) add('spec', 'fail', `${packet.spec} not found on ${ref}`);
+    if (!spec) add('spec', 'fail', `${packet.spec} not found on ${ref}: commit it on the base branch, then aod task sync ${id}`);
     else {
       const lint = lintSpec(spec);
       let status = 'unknown';

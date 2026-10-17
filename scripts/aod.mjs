@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { runDoctor, formatDoctor } from './lib/doctor.mjs';
 import { AodError } from './lib/proc.mjs';
 import { indexRender, init, slot, status } from './commands/setup.mjs';
-import { packetNew, packetRestore, packetShow, packetValidate, taskCommit, taskSet } from './commands/tasks.mjs';
+import { packetNew, packetRestore, packetShow, packetValidate, taskCommit, taskSet, taskSync } from './commands/tasks.mjs';
 import { delegate, gates, merge, reject, revise } from './commands/run.mjs';
 import { lock, scopeCheck, unlock } from './commands/guard.mjs';
 import { adrAccept, adrNew, adrSupersede, journalCheck, journalNew, sessionEnd, sessionStart, specCheck, specNew } from './commands/memory.mjs';
@@ -33,6 +33,7 @@ Tasks
   packet show T-xxxx                   Print the packet (working tree or task/T-xxxx)
   packet restore T-xxxx                Put a committed packet back in the working tree to edit it
   task commit T-xxxx [paths...]        Commit packet + acceptance tests to task/T-xxxx, stay on base branch
+  task sync T-xxxx [--force]           Merge the base branch into task/T-xxxx (specs/ADRs committed later)
   task set T-xxxx status=ready [notes=...] [attention_minutes=N]
 
 Memory and sessions
@@ -86,6 +87,7 @@ const COMMANDS = {
   'packet restore': packetRestore,
   'task commit': taskCommit,
   'task set': taskSet,
+  'task sync': taskSync,
   delegate,
   revise,
   gates,

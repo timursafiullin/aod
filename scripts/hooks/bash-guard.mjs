@@ -1,7 +1,9 @@
 #!/usr/bin/env node
-// PreToolUse(Bash): block destructive git in an AOD repo and any state-changing git inside worktree slots.
+// PreToolUse(Bash): block destructive git in an AOD repo, any state-changing git inside worktree slots, and
+// shell writes to protected paths (contracts, acceptance tests, accepted ADRs, slots) unless unlocked.
 import { resolve } from 'node:path';
-import { gitInvocations } from '../lib/shellwords.mjs';
+import { gitInvocations, writeTargets } from '../lib/shellwords.mjs';
+import { check as contractCheck } from './contract-guard.mjs';
 import { aodProject, block, isInSlots, run } from './common.mjs';
 
 const SLOT_READONLY = new Set([
@@ -73,12 +75,27 @@ export function check(command, cwd, project) {
   return null;
 }
 
+// Shell writes (redirections, tee, cp/mv/rm, sed -i, ...) get the same protection as the Edit/Write tools.
+export function checkWrites(command, cwd, project) {
+  let dir = cwd;
+  for (const w of writeTargets(command)) {
+    if (w.cd) {
+      dir = resolve(dir, w.cd);
+      continue;
+    }
+    const reason = contractCheck(project, w.path, dir);
+    if (reason) return `shell write (${w.how}) blocked: ${reason}`;
+  }
+  return null;
+}
+
 run(import.meta.url, (input) => {
   const cwd = input.cwd || process.cwd();
   const project = aodProject(cwd);
-  if (!project || project.config.guards?.git === false) return;
+  if (!project) return;
   const command = input.tool_input?.command;
   if (typeof command !== 'string') return;
-  const reason = check(command, cwd, project);
+  const reason = (project.config.guards?.git !== false && check(command, cwd, project))
+    || (project.config.guards?.contracts !== false && checkWrites(command, cwd, project));
   if (reason) block(reason);
 });

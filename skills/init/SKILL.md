@@ -15,10 +15,12 @@ description: Set up Architect-Orchestrated Development in the current git reposi
 4. Offer to fill in `.agents/context/vision.md`, `.agents/context/invariants.md`, `.agents/plans/roadmap.md`
    (milestones) and the `Commands` section of `AGENTS.md` together with the user. Ask for the product
    description, red lines, milestones and test commands; write them in English, short and checkable.
-5. Offer to turn on the "done means green" gate: set `stop_gate.enabled: true` and `stop_gate.commands` (for
+5. Offer a session baseline: set `session.baseline` in `.agents/aod.config.json` to the project's fast checks (for
+   example `["node --test"]`, the test command from AGENTS.md). `/aod:session-start` runs it before any new work.
+6. Offer to turn on the "done means green" gate: set `stop_gate.enabled: true` and `stop_gate.commands` (for
    example `["npm test"]`) in `.agents/aod.config.json`. Then a turn cannot end with uncommitted changes while
    those commands fail.
-6. Suggest committing the scaffold on the base branch (`chore: set up AOD`). Do not commit without the user's
+7. Suggest committing the scaffold on the base branch (`chore: set up AOD`). Do not commit without the user's
    go-ahead.
 
 Notes:

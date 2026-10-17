@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.4.1 — M3.1 dry-run fixes
+
+- `aod task commit` refuses while the referenced spec/ADRs are uncommitted on the base branch; new `aod task sync`.
+- Bash hook (`bash-guard`) now also blocks shell writes to protected paths and slots (redirects, tee, cp/mv/rm,
+  sed -i, dd, git rm/mv) unless unlocked.
+- EARS lint accepts commas inside clauses and explains what is missing.
+- One ledger rule across skills; `session end` without `--commit` is `pending-commit`, not an error.
+- `session start` warns when no baseline is configured and briefs first sessions; init offers `session.baseline`.
+- Packet template: `Implements:` line, acceptance placeholder (validation rejects leftovers), budget 30.
+- Spec approval and pending-decision rules in the skills; ADR slugs stop at word boundaries; ADR-0005.
+
 ## 0.4.0 — M3 memory and sessions
 
 - Skills: `/aod:session-start`, `/aod:session-end`, `/aod:adr`, `/aod:spec`, `/aod:decision`; `/aod:preflight` now

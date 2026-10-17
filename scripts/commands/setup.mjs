@@ -44,7 +44,7 @@ export function init({ cwd, slots }) {
 
   if (!existsSync(project.indexPath)) {
     saveIndex(project, loadIndex(project));
-    report.created.push(rel(project.indexPath));
+    report.created.push(rel(project.indexPath), '.agents/tasks/index.md');
   }
 
   const agentsMd = join(root, 'AGENTS.md');

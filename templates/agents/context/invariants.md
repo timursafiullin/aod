@@ -2,5 +2,6 @@
 
 Rules that hold for every change. Each line must be checkable.
 
-- Contracts in `schemas/` are the single source of truth for interfaces.
+- Interfaces are defined by contracts (schemas, API definitions; see the repository map in AGENTS.md) before
+  they are implemented, and the contracts are their single source of truth.
 - Acceptance tests are written before implementation and are never weakened to pass.
