@@ -9,6 +9,14 @@
 - Release process (ADR-0008): semver for the user-facing surface, `CHANGELOG.md` as the release notes, and a
   tag-driven release workflow that checks that the tag, `plugin.json` and the changelog agree.
 - CI also checks version and changelog drift, skill names against their folders, and README links.
+- Fixes from a timed quick-start dry run (first delegation reached in about 2 minutes of agent time):
+  - `aod doctor` checks `codex login status` and shows the minimum Node and git versions;
+  - slots that do not exist yet show as free in `aod status`;
+  - `aod task commit` mirrors the packet's milestone, title and owner into the ledger;
+  - the doctor skill no longer claims a Claude fallback when Codex is missing;
+  - the quick start gains a PowerShell variant and covers permission prompts, init's optional offers, the
+    ledger's state, leftover branches and the cost;
+  - the example repository gets a `.gitattributes` (no CRLF warnings) and an absolute link to the guide.
 
 ## 0.6.1 — retro token accounting
 

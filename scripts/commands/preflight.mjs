@@ -48,7 +48,7 @@ export function classifyFailure(output, scope, checkoutDir) {
 }
 
 function withTaskCheckout(project, id, fn) {
-  const free = project.slotNames().map((n) => slotInfo(project, n)).find((s) => s.free);
+  const free = project.slotNames().map((n) => slotInfo(project, n)).find((s) => s.exists && s.free);
   if (free) {
     git(['switch', '--detach', taskBranch(id)], free.path);
     try {

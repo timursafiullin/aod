@@ -158,8 +158,14 @@ export function taskCommit({ cwd, args }) {
       removed.push(p);
     }
   }
-  // The packet's dependencies drive aod delegate and aod wave; mirror them into the ledger.
-  updateTask(project, id, { depends_on: packet.depends_on || [] });
+  // The committed packet is the source of truth: mirror the fields the ledger also shows (dependencies drive
+  // aod delegate and aod wave; milestone, title and owner drive status, index.md and aod retro).
+  updateTask(project, id, {
+    depends_on: packet.depends_on || [],
+    ...(packet.milestone ? { milestone: String(packet.milestone) } : {}),
+    ...(packet.title ? { title: String(packet.title) } : {}),
+    ...(packet.owner ? { owner: packet.owner } : {}),
+  });
   return { id, branch, committed: paths, moved_off_base: removed, next: `Run /aod:preflight, then \`aod task set ${id} status=ready\`` };
 }
 

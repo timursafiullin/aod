@@ -112,8 +112,12 @@ test('wave plan defers a task whose scope overlaps an earlier one', () => {
     // Widen T-0002's scope to src/** on its task branch: it now overlaps T-0001.
     assert.equal(ctx.aod('packet', 'restore', t2).code, 0);
     const p = join(ctx.repo, '.agents', 'tasks', `${t2}.md`);
-    writeFileSync(p, readFileSync(p, 'utf8').replace(/^ {2}- src\/t-0002\.mjs$/m, '  - src/**'));
+    writeFileSync(p, readFileSync(p, 'utf8').replace(/^ {2}- src\/t-0002\.mjs$/m, '  - src/**').replace(/^milestone: M5$/m, 'milestone: M6'));
     assert.equal(ctx.aod('task', 'commit', t2).code, 0);
+    const ledger = JSON.parse(readFileSync(join(ctx.repo, '.agents', 'tasks', 'index.json'), 'utf8'));
+    assert.equal(ledger.tasks.find((t) => t.id === t2).milestone, 'M6', 'task commit mirrors the packet milestone');
+    const slots = ctx.aod('status').json.slots;
+    assert.deepEqual(slots.map((s) => [s.exists, s.free]), [[false, true], [false, true]], 'slots not created yet are free');
     const r = ctx.aod('wave', 'plan');
     assert.deepEqual(r.json.wave.map((w) => w.id), [t1]);
     assert.deepEqual(r.json.deferred, [{ id: t2, reason: `scope overlaps ${t1}` }]);
