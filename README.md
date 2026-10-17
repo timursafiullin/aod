@@ -1,6 +1,7 @@
 # AOD — Architect-Orchestrated Development
 
-> Status: early development (M1, delegation loop). Expect breaking changes. See the [roadmap](.agents/plans/roadmap.md).
+> Status: release candidate for 1.0. The delegation loop, guardrails, memory, routing, waves and retro are complete
+> and tested on Windows, macOS and Linux. See the [changelog](CHANGELOG.md) and the [roadmap](.agents/plans/roadmap.md).
 
 AOD is a Claude Code plugin that turns one strong model into an **architect** and cheaper, cross-family
 coding agents (Codex CLI) into **implementers**. The architect writes contracts and acceptance tests, cuts work
@@ -17,6 +18,9 @@ repository (`.agents/`), so no session starts from zero.
 
 Requirements: Node.js >= 20 and git >= 2.38. For delegation, install [Codex CLI](https://github.com/openai/codex)
 and run `codex login`. Check everything with `/aod:doctor`.
+
+New here? The [quick start](docs/quick-start.md) takes you from install to a first task implemented by Codex and
+merged by Claude in about 15 minutes.
 
 ## The loop
 
@@ -93,7 +97,9 @@ node scripts/aod.mjs help
 node --test
 ```
 
-The end-to-end tests run the full loop against a fake Codex (`tests/fixtures/fake-codex.mjs`).
+The end-to-end tests run the full loop against a fake Codex (`tests/fixtures/fake-codex.mjs`). See
+[CONTRIBUTING](CONTRIBUTING.md) for the ground rules and the release process, and [SECURITY](SECURITY.md) for
+reporting guardrail bypasses.
 
 ## License
 

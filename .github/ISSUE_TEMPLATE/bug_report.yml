@@ -1,0 +1,42 @@
+name: Bug report
+description: Something in AOD does not work as documented
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks! Please remove private code or secrets from logs, briefs and reports before pasting them.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: The command or skill you ran, what you expected, what you got.
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Command output
+      description: The JSON output or error of the failing `aod` command. For delegation problems, the tail of `.agents/tasks/jobs/T-xxxx/stderr.log`.
+      render: text
+  - type: textarea
+    id: doctor
+    attributes:
+      label: Environment
+      description: Output of `node <plugin>/scripts/aod.mjs doctor --json` or `/aod:doctor`.
+      render: json
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: AOD version
+      description: From `/plugin` or `node scripts/aod.mjs --version`.
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options: [Windows, macOS, Linux, WSL]
+    validations:
+      required: true

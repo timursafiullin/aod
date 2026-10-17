@@ -9,3 +9,4 @@
 | [ADR-0005](ADR-0005-task-branch-sync-shell-write-guard-ledger-rule.md) | Task branches carry committed specs/ADRs, shell writes are guarded, one ledger rule | Accepted | 2026-10-17 |
 | [ADR-0006](ADR-0006-routing-and-codex-unavailability.md) | Model routing presets (default "max"), stop-and-ask when Codex is unavailable, cross-family tools | Accepted | 2026-10-17 |
 | [ADR-0007](ADR-0007-waves-retro-mutation.md) | Parallel waves, ledger history and lock, retro metrics, mutation-testing adapter | Accepted | 2026-10-17 |
+| [ADR-0008](ADR-0008-release-process.md) | Release process: semver tags, the changelog as release notes, a 1.0 release candidate | Accepted | 2026-10-17 |

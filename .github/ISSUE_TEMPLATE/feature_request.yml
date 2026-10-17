@@ -1,0 +1,22 @@
+name: Feature request
+description: Propose a change to the AOD workflow, a skill or the CLI
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What goes wrong or costs you attention in your AOD loop today? A concrete task or retro number helps.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: What should change. Say whether it is judgment (a skill) or mechanics (the CLI, a gate, a hook).
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered

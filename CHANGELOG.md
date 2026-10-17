@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.0-rc.1 — M6 community release candidate
+
+- Quick start (`docs/quick-start.md`): install to first delegated and merged task in about 15 minutes.
+- `CONTRIBUTING.md`, `SECURITY.md`, issue forms and a pull request template.
+- Release process (ADR-0008): semver for the user-facing surface, `CHANGELOG.md` as the release notes, and a
+  tag-driven release workflow that checks that the tag, `plugin.json` and the changelog agree.
+- CI also checks version and changelog drift, skill names against their folders, and README links.
+
 ## 0.6.1 — retro token accounting
 
 - `aod retro` reports uncached tokens (fresh input + output) separately from cached input, with the cache hit
