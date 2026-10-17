@@ -22,7 +22,7 @@ Goal: ship AOD 2.0 as an **open-source Claude Code plugin** that anyone installs
 | Targets | Architect = Claude Code; implementer = Codex CLI (via `codex exec`), with Codex-readable AGENTS.md block + implementer skill |
 | Script runtime | **Node.js ≥ 18, zero npm dependencies** (`.mjs`, built-ins only). Reason: no install step, cross-platform incl. Windows, Codex/Claude users almost always have Node; avoids Python `python/py/venv` pain. `aod doctor` checks the environment |
 | Split of work | Skills = judgment (short prompts); one CLI `scripts/aod.mjs` = mechanics (deterministic, zero tokens). Skills call the CLI |
-| Repo language | English for everything shipped (methodology §14.4). RU methodology stays as source; EN translation in M6 |
+| Repo language | English for everything shipped (methodology §14.4). Methodology in English and Russian (`docs/aod-methodology-EN.md`, `-RU.md`), both updated to AOD 2.0 in M6 |
 | License | Apache-2.0 (patent grant; friendly for companies) — confirm at M0 |
 | Dogfooding | This repo uses a light `.agents/` (context, decisions, journal, tasks) from M1 onward |
 
@@ -54,7 +54,7 @@ aod/
 ├── codex/                       # implementer AGENTS.md block, implementer SKILL.md, custom-agent TOMLs
 ├── examples/toy-calculator/     # tiny repo used by e2e tests and the README demo
 ├── tests/                       # node:test unit + e2e (fake `codex` shim for CI)
-├── docs/                        # methodology (RU source, EN later), guides, ADRs of the plugin itself
+├── docs/                        # methodology (EN + RU), quick start, research, ADRs of the plugin itself
 └── README.md LICENSE CONTRIBUTING.md CHANGELOG.md .github/workflows/ci.yml
 ```
 
@@ -90,7 +90,7 @@ User project after `/aod-init`: `.agents/{context,rules,decisions,specs,tasks,pl
 | **M3 Memory & session** ✅ | `aod-session-start/end`, `aod-adr`, `aod-spec` (EARS → acceptance mapping), `aod-decision`, journal tooling, compaction invariant refresh; full preflight consistency check | New session on toy repo resumes from journal "Next step" with zero manual reading; ADR from chat decision in 1 command |
 | **M4 Cross-family & routing** ✅ (re-scoped by ADR-0006) | Routing presets (default `max`) with escalation by evidence; Codex unavailable/out-of-quota → exit 5, stop and ask; `aod-implementer` skill in `.agents/skills`; `aod review` (codex exec review of Claude-written changes) and `aod explore` (read-only Codex) | Escalation and quota stop covered by tests; live `aod review` and `aod explore` against real Codex |
 | **M5 Parallelism & metrics** ✅ (ADR-0007) | `aod wave plan/run`: parallel delegation of independent tasks (depends_on + disjoint scope check, one per free slot) with a ledger lock; ledger events; `aod retro` metrics §18 + attention minutes + pool %; tool-agnostic mutation adapter in gates | Wave test: 4 tasks (one dependent) on 2 slots in two overlapping waves; retro report generated from the ledger |
-| **M6 Community release v1.0** 🟡 (1.0.0-rc.1, ADR-0008) | Done: quick-start guide, CONTRIBUTING, SECURITY, issue/PR templates, semver + CHANGELOG, tag-driven release workflow with drift checks. Open: EN methodology, 3-minute demo, public repository + `v1.0.0-rc.1` tag (PO), feedback from 2–3 external users | Fresh machine: install → first delegated task in < 15 min following README |
+| **M6 Community release v1.0** 🟡 (1.0.0-rc.1, ADR-0008) | Done: EN + RU methodology (AOD 2.0), quick-start guide, CONTRIBUTING, SECURITY, issue/PR templates, semver + CHANGELOG, tag-driven release workflow with drift checks. Open: 3-minute demo, public repository + `v1.0.0-rc.1` tag (PO), feedback from 2–3 external users | Fresh machine: install → first delegated task in < 15 min following README |
 
 Post-1.0 backlog: GitLab support, other implementers (Gemini CLI, Pi adapter), Codex-cloud mode when PC is off,
 public-SDK leak guard, legacy-port playbook, `/skill-doctor` hygiene.
